@@ -1,78 +1,88 @@
 # Architecture
 
-`filament-accounting` is one Laravel package with one service provider, one
-Filament plugin, and one accounting boundary. `nemiah/php-fints` remains a
-framework-independent protocol dependency; all application behavior lives in
-this repository.
+`fliix-cloud/filament-fints-accounting` is the Composer package name. The
+package's internal Laravel name remains `filament-accounting`; its PSR-4
+namespace is `FilamentAccounting\`. Laravel auto-discovers
+`FilamentAccounting\FilamentAccountingServiceProvider` from `composer.json`.
+Filament integration is provided by `FilamentAccountingPlugin`.
 
 ## Scope
 
-The package currently provides:
+The package is a Laravel 13 / Filament 5 accounting package with a Germany-first
+profile. Its documented scope includes:
 
-- customers, suppliers, catalog items, and sales and purchase invoices;
-- a first-party double-entry ledger, open items, periods, and reversals;
-- versioned tax and posting rules with a Germany-first profile;
-- FinTS account, balance, and transaction synchronization;
-- SEPA transfers, direct debits, mandates, and SCA workflows;
-- bank reconciliation with direct assignments, partial payments, and splits;
-- invoice attachments, structured e-invoices, and audit evidence.
+- legal-entity-scoped customers, suppliers, catalog items, sales and purchase
+  invoices, open items, periods, reversals, and a first-party double-entry ledger;
+- versioned tax and posting rules, with exact money handling through
+  `brick/money`;
+- FinTS account, balance, and transaction synchronization, SEPA transfers and
+  direct debits, mandates, and SCA workflows;
+- bank reconciliation with direct assignments, partial payments, splits, and
+  explainable suggestions;
+- private invoice attachments, structured e-invoices, invoice versions, and
+  audit evidence; and
+- catalog import/export in XLSX, XLS, CSV, and JSON formats.
 
-Fixed assets, payroll, cash-register/TSE workflows, consolidation, and complete
-foreign tax advice are outside the current scope.
+Fixed assets, payroll, cash-register/TSE workflows, consolidation, foreign-
+currency conversion, and complete foreign-tax advice are outside the current
+scope. FinTS support is Germany-first and depends on the bank; it is not a
+universal European banking integration.
 
-## Boundaries
+## Package structure and boundaries
+
+The source tree is organized around `Models`, `Ledger`, `Tax`, `Documents`,
+`Banking`, `Reconciliation`, `Catalog`, `Export`, `Audit`, `Authorization`,
+`Ownership`, `Services`, and `Filament`. `Filament` resources are the user
+interface, not the accounting or security boundary. Business rules belong in
+services and contracts.
 
 `LegalEntity` is the reporting and integrity boundary. The default resolver
-expects exactly one company per application instance. The host resolves the
-current actor and authorization separately; request data never selects the
-company. Queue jobs carry scalar identifiers and activate the trusted context
-before loading records.
+expects one company per application instance. The host resolves the actor and
+authorization separately; request data does not select the company. Queue jobs
+carry scalar identifiers and activate trusted context before loading records.
 
 `AccountingBankAccount` and `BankStatementLine` are the canonical bank models.
-FinTS imports directly into them. Material source changes create append-only
-`BankTransactionSourceVersion` records instead of silently changing posted
-accounting data.
-
-Core business rules live in services and contracts. Filament resources provide
-the UI but are not the security or accounting boundary.
+FinTS imports into them, while material source changes are retained as
+append-only source versions rather than silently changing posted accounting
+data.
 
 ## Accounting rules
 
-- Money uses integer minor units and exact decimal conversion, never floats.
-- Postings must use the legal entity base currency; foreign-currency conversion is not implemented.
-- A posted journal has at least two non-zero lines and balanced debits/credits in both transaction and base currency.
-- Posting is idempotent per Legal Entity and idempotency key.
-- Hard-closed periods reject new postings.
-- Posted journals and issued documents are immutable.
-- Corrections create linked reversals; they do not edit accounting history.
-- Document payment state is derived from open items and active settlements.
-- Tax and posting rules are versioned by effective date.
+- Money uses integer minor units and exact decimal conversion; calculations do
+  not rely on floating-point values.
+- Postings use the legal entity's base currency. Foreign-currency conversion is
+  not implemented and unsupported currency cases must be rejected.
+- A posted journal has at least two non-zero lines and balanced debits and
+  credits in transaction and base currency.
+- Posting is idempotent per legal entity and idempotency key. Hard-closed
+  periods reject new postings.
+- Posted journals and issued document versions are immutable. Corrections use
+  linked reversals and replacement versions rather than editing history.
+- Payment state is derived from open items and active settlements. Tax and
+  posting rules are versioned by effective date.
 
-Purchase invoices start with a PDF upload. A separate XML e-invoice may be
-attached for structured import. The user confirms the business category before
-registration; the package resolves the internal ledger account.
+Purchase invoices start with private PDF/XML intake. The business category is
+confirmed before registration and the package resolves the internal ledger
+account. Source files and interrupted processing are retained for review; a
+successful parse is not by itself an e-invoice conformity determination.
 
-## Reconciliation
+## Reconciliation and banking
 
 A direct assignment consumes one complete bank transaction, even when it only
-partially settles an invoice. A split is required when one transaction targets
-two or more invoices, categories, or ledger purposes. Allocation amounts are
-signed, currency-matched, and must equal the transaction exactly.
+partially settles an invoice. A split is required when a transaction targets
+multiple invoices, categories, or ledger purposes. Signed, currency-matched
+allocations must equal the transaction exactly.
 
-`FinalizeReconciliation` locks the relevant records, validates ownership and
-amounts, posts one balanced journal, creates settlements, and marks the result
-as posted in one database transaction. Reversals restore the accounting state
-without deleting history.
+Finalization locks the relevant records, validates ownership and amounts, posts
+one balanced journal, creates settlements, and marks the result posted in one
+accounting transaction. Reversals restore accounting state without deleting
+history. Suggestions are deterministic and explainable; they never post
+automatically or cross legal entities.
 
-Suggestions are deterministic and explainable. Confirmed local learning rules
-can improve later rankings, but suggestions never post automatically and never
-cross Legal Entities.
-
-## E-invoices and security
+## E-invoices, security, and audit
 
 Structured invoices use `horstoeko/zugferd`. Generation is based on the issued
-document snapshot. XML and PDF checks run in PHP without Java or remote
-validation services. These checks support validation but do not constitute an
+document snapshot. Local XML/PDF checks support validation but are not an
 independent conformity certification.
 
 Attachments use a private Laravel disk and content-based MIME detection.
@@ -80,17 +90,20 @@ Credentials, dialog state, SCA data, and resumable payment state are encrypted
 or redacted. FinTS endpoints require HTTPS by default, and ambiguous payment
 submissions are not retried automatically.
 
-The package records critical actions in a per-company SHA-256 audit chain.
-Journal posting captures the complete persisted journal and its lines in a
-versioned, hashed audit payload. Account and period snapshots preserve historical
-export values. Verification detects changed, missing, and unsealed postings;
-CSV export refuses failed ledger, audit-chain, or configured-anchor checks.
-External anchors make later manipulation detectable when stored outside the
-application's normal database and permission boundary.
+Critical actions are recorded in a per-company SHA-256 audit chain. Journal
+posting stores a versioned, hashed snapshot of the persisted journal and lines.
+Verification detects changed, missing, and unsealed postings; verified exports
+refuse failed ledger, chain, audit-anchor, or evidence checks. External anchors
+make later coordinated manipulation detectable only when they are stored outside
+the application's normal database and permission boundary.
+
+These controls support traceability but do not establish GoBD certification.
+See [GoBD readiness](gobd.md) and [Operations](operations.md) for the remaining
+technical and operational requirements.
 
 ## Extension points
 
-Host applications may replace the documented contracts for ownership, actor
-resolution, tenancy activation, authorization, compliance profiles, audit
-anchor storage, accounting export, and e-invoice handling. The first-party
-ledger remains behind `LedgerEngine`.
+Host applications may replace documented contracts for ownership, actor
+resolution, tenancy activation, authorization, compliance profiles, audit-anchor
+storage, accounting export, and e-invoice handling. The first-party ledger
+remains behind `LedgerEngine`.

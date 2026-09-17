@@ -8,7 +8,7 @@ This repository is an **installable Composer package**, not a Laravel applicatio
 
 - Legal-entity scoped double-entry journal (`LedgerEngine`)
 - Customers, suppliers, catalog, sales and purchase invoices, open items
-- [Strict catalog import/export](docs/catalog-import-export.md) with XLSX, XLS, CSV and JSON templates
+- [Strict catalog import/export](docs/operations.md) with XLSX, XLS, CSV and JSON templates
 - One canonical bank account and bank transaction model, direct FinTS synchronization, SEPA transfers/direct debits, mandates, and SCA
 - Append-only bank source versions for pending, booked, changed, and reversed source states
 - Direct assignment, partial settlement, true multi-target splits, and explainable local learning rules
@@ -85,7 +85,7 @@ The project is pre-release. The schema may change, including edits to base
 migrations. Recreate **disposable development databases only** with
 `php artisan migrate:fresh --seed`. Never use this command on retained accounting
 data. Existing forward migrations do not establish a supported upgrade path
-from every earlier development commit. See the [schema and release policy](docs/upgrading.md).
+from every earlier development commit. See the [schema and release policy](docs/install.md).
 
 ## Package rename
 
@@ -96,15 +96,14 @@ Artisan commands, routes, and view/translation namespaces remain unchanged.
 
 ## Documentation
 
-- [Installation und Inbetriebnahme](docs/install.md) — installation, panel, permissions, company setup, and operations
+- [Installation und Inbetriebnahme](docs/install.md) — installation, panel,
+  permissions, company setup, and schema/release policy
 - [Architecture](docs/architecture.md) — scope, boundaries, accounting rules,
   reconciliation, e-invoices, and extension points
 - [Operations](docs/operations.md) — production responsibilities, audit anchors,
-  retention, recovery, and release checks
-- [Schema and release policy](docs/upgrading.md) — development updates, retained
-  data, compatibility changes, and requirements for the first 0.x release
-- [GoBD readiness](docs/gobd.md) — code assessment, release blockers, and the
-  conditions for a defensible compliance claim
+  retention, recovery, catalog transfer, and invoice operations
+- [GoBD readiness](docs/gobd.md) — current controls, open gaps, and claim
+  boundaries
 
 ## Development
 
