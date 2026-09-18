@@ -18,6 +18,8 @@ use Illuminate\Support\Carbon;
  * @property string|null $last_error
  * @property int|null $document_id
  * @property Carbon|null $preserved_at
+ * @property Carbon|null $created_at
+ * @property Carbon|null $updated_at
  */
 class PurchaseInvoiceIntake extends AccountingModel
 {
