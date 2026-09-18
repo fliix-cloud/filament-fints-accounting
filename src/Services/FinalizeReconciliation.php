@@ -2,6 +2,7 @@
 
 namespace FilamentAccounting\Services;
 
+use FilamentAccounting\Audit\SettlementEvidence;
 use FilamentAccounting\Contracts\AccountingActorResolver;
 use FilamentAccounting\Contracts\AccountingAuthorizer;
 use FilamentAccounting\Contracts\LedgerEngine;
@@ -38,6 +39,7 @@ final class FinalizeReconciliation
         private readonly LegalEntityScope $scope,
         private readonly AuditLogger $audit,
         private readonly StoreReconciliationLearningRules $learningRules,
+        private readonly SettlementEvidence $settlementEvidence,
     ) {}
 
     /**
@@ -170,6 +172,7 @@ final class FinalizeReconciliation
                         throw new ReconciliationException(__('filament-accounting::errors.settlement_exceeds_remaining'));
                     }
 
+                    $remainingBefore = $item->remainingMinor();
                     $settlement = new Settlement;
                     $settlement->fill([
                         'legal_entity_id' => $line->legal_entity_id,
@@ -178,6 +181,13 @@ final class FinalizeReconciliation
                         'amount_minor' => $amount,
                         'currency' => $line->currency,
                         'is_reversed' => false,
+                        'evidence' => $this->settlementEvidence->capture(
+                            $item,
+                            $amount,
+                            (string) $line->currency,
+                            $line,
+                            $remainingBefore,
+                        ),
                     ]);
                     $settlement->save();
                 }

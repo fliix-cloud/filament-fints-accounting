@@ -287,6 +287,13 @@ final class RegisterPurchaseInvoice
             } catch (InvalidMoneyException $e) {
                 throw new DocumentException(__('filament-accounting::errors.invalid_line_discount'), 0, $e);
             }
+            // Converted e-invoice lines (with a source line index) must keep their
+            // source binding. Manual drafts and unindexed tax suggestions stay unbound.
+            $hasSourceIndex = array_key_exists('source_line_index', $input) && $input['source_line_index'] !== null;
+            if ($hasSourceIndex && ! filled($input['source_line_hash'] ?? null)) {
+                throw new DocumentException(__('filament-accounting::errors.purchase_line_source_evidence_required'));
+            }
+
             $taxCodeValue = $input['tax_code'] ?? null;
             $version = filled($taxCodeValue) ? $this->taxRules->handle($entity, $taxCodeValue, $date) : null;
             if (! $version && ! array_key_exists('imported_tax_rate_bp', $input)) {
