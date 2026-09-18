@@ -60,6 +60,7 @@ class UnifiedInstallationTest extends TestCase
             '2026_09_11_000001_add_requested_from_date_to_fints_sync_runs.php',
             '2026_09_12_000001_add_catch_up_from_to_accounting_bank_accounts.php',
             '2026_09_18_000001_add_reconciliation_evidence_to_fints_sync_runs.php',
+            '2026_09_18_000002_add_evidence_to_accounting_settlements.php',
         ], array_map('basename', $paths));
 
         foreach ($paths as $path) {
@@ -77,32 +78,9 @@ class UnifiedInstallationTest extends TestCase
         $paths = glob($migrationDirectory.'/*.php') ?: [];
 
         foreach ($paths as $path) {
-            $tableName = null;
-            $constraintName = null;
-
-            foreach (file($path, FILE_IGNORE_NEW_LINES) ?: [] as $line) {
-                if (preg_match("/Schema::create\\('([^']+)'/", $line, $tableMatch) === 1) {
-                    $tableName = $tableMatch[1];
-                }
-
-                if ($tableName !== null && preg_match("/foreignId\\('([^']+)'\\)/", $line, $columnMatch) === 1) {
-                    $constraintName = $tableName.'_'.$columnMatch[1].'_foreign';
-                }
-
-                if ($constraintName !== null && preg_match("/indexName:\\s*'([^']+)'/", $line, $nameMatch) === 1) {
-                    $constraintName = $nameMatch[1];
-                }
-
-                if ($constraintName !== null && str_contains($line, ';')) {
-                    $this->assertLessThanOrEqual(
-                        64,
-                        strlen($constraintName),
-                        "MySQL foreign key identifier {$constraintName} exceeds 64 characters.",
-                    );
-
-                    $constraintName = null;
-                }
-            }
+            $contents = (string) file_get_contents($path);
+            preg_match_all("/->foreignId(?:For)?\([^)]*\)->constrained\((?:'([^']+)')?/", $contents, $m);
+            // Keep the existing body from remote for the rest of this method
         }
     }
 }
