@@ -8,11 +8,13 @@ use Filament\Support\Colors\Color;
 use Filament\Support\Enums\Width;
 use FilamentAccounting\Banking\FinTs\Filament\Pages\StrongAuthentication;
 use FilamentAccounting\Banking\FinTs\Filament\Resources\BankConnectionResource;
+use FilamentAccounting\Banking\FinTs\Filament\Resources\BankSyncRunResource;
 use FilamentAccounting\Banking\FinTs\Filament\Resources\BankDirectDebitResource;
 use FilamentAccounting\Banking\FinTs\Filament\Resources\BankTransferResource;
 use FilamentAccounting\Banking\FinTs\Filament\Resources\DirectDebitCreditorProfileResource;
 use FilamentAccounting\Banking\FinTs\Filament\Resources\DirectDebitMandateResource;
 use FilamentAccounting\Banking\FinTs\Filament\Widgets\BankBalancesWidget;
+use FilamentAccounting\Banking\FinTs\Filament\Widgets\BankingBacklogWidget;
 use FilamentAccounting\Filament\Navigation\AccountingNavigation;
 use FilamentAccounting\Filament\Pages\ReconciliationPage;
 use FilamentAccounting\Filament\Resources\AccountingBankAccountResource;
@@ -218,7 +220,9 @@ class FilamentAccountingPlugin implements Plugin
 
         if ($this->enabled('bank_reconciliation') && $this->hasBankReconciliation) {
             $widgets[] = BankBalancesWidget::class;
+            $widgets[] = BankingBacklogWidget::class;
             $resources[] = AccountingBankAccountResource::class;
+            $resources[] = BankSyncRunResource::class;
             $resources[] = BankStatementLineResource::class;
             $resources[] = BankTransferResource::class;
             $resources[] = BankDirectDebitResource::class;
