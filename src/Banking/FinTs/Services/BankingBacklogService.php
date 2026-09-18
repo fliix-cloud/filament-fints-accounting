@@ -86,7 +86,9 @@ class BankingBacklogService
                 'sync_run_id' => (int) $run->getKey(),
                 'sync_run_uuid' => $run->uuid,
                 'account_id' => $run->accounting_bank_account_id,
-                'account_name' => $run->account?->display_name,
+                'account_name' => $run->account instanceof AccountingBankAccount
+                    ? $run->account->display_name
+                    : null,
                 'status' => $run->status->value,
                 'type' => $run->type->value,
                 'error_code' => $run->error_code,
