@@ -10,6 +10,7 @@ use FilamentAccounting\Banking\FinTs\Services\BalanceSyncService;
 use FilamentAccounting\Banking\FinTs\Services\TransactionSyncService;
 use FilamentAccounting\Banking\FinTs\Support\FintsUi;
 use FilamentAccounting\Contracts\AccountingActorResolver;
+use FilamentAccounting\Contracts\AccountingAuthorizer;
 use FilamentAccounting\Models\AccountingBankAccount;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Livewire\Attributes\Locked;
@@ -26,6 +27,7 @@ trait InteractsWithBankAccountSync
 
     public function continueCatchUpDrain(AccountingBankAccount $account): void
     {
+        app(AccountingAuthorizer::class)->authorize('sync_bank', $account);
         $result = app(TransactionSyncService::class)->drainCatchUp(
             $account,
             app(AccountingActorResolver::class)->resolve(),
@@ -73,6 +75,7 @@ trait InteractsWithBankAccountSync
 
     public function syncBankAccountBalance(AccountingBankAccount $account): void
     {
+        app(AccountingAuthorizer::class)->authorize('sync_bank', $account);
         $outcome = $this->runBalanceSync($account);
         if ($this->openSca($outcome)) {
             return;
@@ -84,6 +87,7 @@ trait InteractsWithBankAccountSync
 
     public function syncBankAccountTransactions(AccountingBankAccount $account): void
     {
+        app(AccountingAuthorizer::class)->authorize('sync_bank', $account);
         $outcome = $this->runTransactionSync($account);
         if ($this->openSca($outcome)) {
             return;
@@ -95,6 +99,7 @@ trait InteractsWithBankAccountSync
 
     public function syncBankAccountTransactionsAndBalance(AccountingBankAccount $account): void
     {
+        app(AccountingAuthorizer::class)->authorize('sync_bank', $account);
         $this->combinedBankSyncAccountId = (int) $account->getKey();
         $this->combinedBankSyncStage = 'balance';
 
