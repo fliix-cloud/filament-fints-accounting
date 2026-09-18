@@ -1,1 +1,1 @@
-__LOAD_FROM__/workspace/mcp_txn_autobind.json__content__
+PLACEHOLDER_WILL_REPLACE
