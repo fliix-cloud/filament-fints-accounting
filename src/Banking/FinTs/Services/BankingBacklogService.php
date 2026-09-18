@@ -4,6 +4,7 @@ namespace FilamentAccounting\Banking\FinTs\Services;
 
 use FilamentAccounting\Banking\FinTs\Enums\SyncStatus;
 use FilamentAccounting\Banking\FinTs\Models\BankSyncRun;
+use FilamentAccounting\Contracts\AccountingAuthorizer;
 use FilamentAccounting\Models\AccountingBankAccount;
 use FilamentAccounting\Models\BankStatementLine;
 use FilamentAccounting\Models\PurchaseInvoiceIntake;
@@ -23,6 +24,10 @@ class BankingBacklogService
     public const ACK_EVIDENCE_KEY = 'operator_acknowledged_at';
 
     public const STUCK_RUNNING_HOURS = 2;
+
+    public function __construct(
+        private readonly AccountingAuthorizer $authorizer,
+    ) {}
 
     /**
      * @return array{
@@ -84,7 +89,6 @@ class BankingBacklogService
                 'kind' => 'sync_run',
                 'severity' => $this->syncRunSeverity($run),
                 'sync_run_id' => (int) $run->getKey(),
-                'sync_run_uuid' => $run->uuid,
                 'account_id' => $run->accounting_bank_account_id,
                 'account_name' => $run->account instanceof AccountingBankAccount
                     ? $run->account->display_name
@@ -134,12 +138,9 @@ class BankingBacklogService
         return $items;
     }
 
-    /**
-     * Acknowledge that an operator has seen a failed / attention / mismatched
-     * sync run. Does not clear catch-up markers or invent completeness.
-     */
     public function acknowledgeSyncRun(BankSyncRun $run, ?string $note = null): BankSyncRun
     {
+        $this->authorizer->authorize('sync_bank', $run->account ?? $run);
         if (! in_array($run->status, [SyncStatus::Failed, SyncStatus::RequiresAttention, SyncStatus::Completed], true)) {
             throw new \InvalidArgumentException('Only failed, attention, or completed (evidence gap) runs can be acknowledged.');
         }
@@ -181,12 +182,11 @@ class BankingBacklogService
     }
 
     /**
-     * Continue catch-up for every account that still has a marker.
-     *
      * @return list<array{account_id: int, complete: bool, chunks: int, stopped_for: string}>
      */
     public function continueCatchUp(?int $legalEntityId = null): array
     {
+        $this->authorizer->authorize('sync_bank');
         $transactions = app(TransactionSyncService::class);
         $results = [];
 
@@ -242,7 +242,6 @@ class BankingBacklogService
                             });
                     });
             })
-            // Acknowledged runs drop out of the open backlog listing.
             ->where(function (Builder $builder): void {
                 $builder->whereNull('reconciliation_evidence')
                     ->orWhereNull('reconciliation_evidence->'.self::ACK_EVIDENCE_KEY);
