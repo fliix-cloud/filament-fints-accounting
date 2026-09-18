@@ -89,4 +89,6 @@ return [
     'posting_rule_version_immutable' => 'A posting rule version referenced by a posted reconciliation cannot be changed.',
     'ledger_account_immutable' => 'A ledger account referenced by role assignments or journal entries cannot be recoded or renamed.',
     'unmapped_e_invoice_tax' => 'The e-invoice tax category/rate (:category, :rate) cannot be mapped safely to a German tax code. Import blocked.',
+    'unsupported_allowance_charge' => 'This e-invoice contains an allowance or charge that cannot be imported safely (:detail). The original remains preserved for review.',
+    'allowance_charge_totals_mismatch' => 'Allowance/charge amounts do not reconcile with the invoice monetary totals (:detail). The original remains preserved for review.',
 ];
