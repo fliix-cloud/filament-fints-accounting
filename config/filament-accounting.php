@@ -131,6 +131,10 @@ return [
                 'initial_lookback_days' => (int) env('FINTS_SYNC_LOOKBACK_DAYS', 90),
                 'incremental_overlap_days' => (int) env('FINTS_SYNC_OVERLAP_DAYS', 3),
                 'max_range_days' => (int) env('FINTS_SYNC_MAX_RANGE_DAYS', 90),
+                // Keep calling sync for the same account until catch_up_from is
+                // cleared or this chunk budget is exhausted (SCA still aborts).
+                'auto_drain' => (bool) env('FINTS_SYNC_AUTO_DRAIN', true),
+                'max_drain_chunks' => (int) env('FINTS_SYNC_MAX_DRAIN_CHUNKS', 20),
                 'use_queue' => (bool) env('FINTS_SYNC_USE_QUEUE', false),
                 'queue' => env('FINTS_QUEUE', 'default'),
                 'retention_days' => (int) env('FINTS_RETENTION_DAYS', 30),
