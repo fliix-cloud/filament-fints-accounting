@@ -32,7 +32,7 @@ final class TransactionFingerprint
             $transaction->getDescription1(),
             $transaction->getDescription2(),
             json_encode($structured, JSON_UNESCAPED_UNICODE),
-            $transaction->getBooked() ? '1' : '0',
+            // Booked vs pending must not change identity; promotion updates status in place.
             $transaction->isStorno() ? '1' : '0',
             (string) $transaction->getPN(),
         ]);

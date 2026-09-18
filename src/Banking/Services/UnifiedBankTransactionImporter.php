@@ -124,13 +124,23 @@ final class UnifiedBankTransactionImporter
             return $exact;
         }
 
+        $incomingStatus = $attributes['source_status'] ?? null;
+        if (! $incomingStatus instanceof StatementLineStatus) {
+            return null;
+        }
+
+        $priorStatuses = $this->promotableFrom($incomingStatus);
+        if ($priorStatuses === []) {
+            return null;
+        }
+
         $query = BankStatementLine::query()
             ->where('legal_entity_id', $account->legal_entity_id)
             ->where('bank_account_id', $account->getKey())
             ->where('source', 'fints')
             ->where('amount_minor', $data->amountMinor)
             ->where('currency', strtoupper($data->currency))
-            ->where('source_status', '!=', $attributes['source_status'])
+            ->whereIn('source_status', $priorStatuses)
             ->lockForUpdate();
 
         $reference = $this->meaningfulReference($data->endToEndId);
@@ -138,14 +148,35 @@ final class UnifiedBankTransactionImporter
             return $this->single($query->whereRaw('upper(end_to_end_id) = ?', [$reference]));
         }
 
+        $hasIdentity = false;
         foreach (['counterparty_name', 'counterparty_account', 'purpose'] as $field) {
             $value = $this->normalizeIdentity($attributes[$field] ?? null);
             if ($value !== null) {
+                $hasIdentity = true;
                 $query->whereRaw('upper('.$field.') = ?', [$value]);
             }
         }
 
+        // Amount+currency alone is not a safe pending→booked identity.
+        if (! $hasIdentity) {
+            return null;
+        }
+
         return $this->single($query);
+    }
+
+    /**
+     * Cross-external-id matching only promotes earlier statuses (never demotes).
+     *
+     * @return list<StatementLineStatus>
+     */
+    private function promotableFrom(StatementLineStatus $incoming): array
+    {
+        return match ($incoming) {
+            StatementLineStatus::Booked => [StatementLineStatus::Pending],
+            StatementLineStatus::Storno => [StatementLineStatus::Pending, StatementLineStatus::Booked],
+            StatementLineStatus::Pending => [],
+        };
     }
 
     /** @param Builder<BankStatementLine> $query */
