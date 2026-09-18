@@ -22,4 +22,5 @@ return [
     'tan_medium_not_allowed' => 'Dieses TAN-Verfahren verwendet kein TAN-Medium. Entfernen Sie das Medium und versuchen Sie es erneut.',
     'tan_mode_unknown' => 'Das gewählte TAN-Verfahren ist für diese Bankverbindung nicht verfügbar. Ermitteln Sie die TAN-Verfahren erneut.',
     'login_required' => 'Für diesen Vorgang muss die Bankverbindung angemeldet sein. Testen Sie die Verbindung und versuchen Sie es erneut.',
+    'concurrent_sync' => 'Für dieses Konto läuft bereits eine Transaktionssynchronisation oder wartet auf SCA.',
 ];
