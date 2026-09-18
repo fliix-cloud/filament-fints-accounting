@@ -93,8 +93,12 @@ The following remain material limits on an unqualified claim:
    Transaction sync now retains statement/balance reconciliation evidence on
    each FinTS sync run (matched / mismatched / unavailable); mismatches fail
    closed and unavailable evidence is surfaced so a green sync is not treated as
-   completeness proof. Concurrent/SCA interruption behavior and backlog controls
-   still need implementation or operational evidence.
+   completeness proof. Operator backlog controls list open catch-up markers,
+   failed/attention/stuck sync runs, pending intakes, and statement lines needing
+   review (`BankingBacklogService`, `filament-accounting:banking-backlog`,
+   Filament sync-backlog resource/widget, continue/ack actions). Acknowledgement
+   records operator review without inventing completeness. Concurrent/SCA
+   interruption behavior still needs implementation or operational evidence.
 8. **Release baseline:** a supported schema baseline, upgrade matrix, migration
    policy for retained data, rollback limits, dependency state, and recovery
    procedure must be published before a production release claim.
