@@ -197,7 +197,7 @@ final class ZugferdEInvoiceAdapter implements EInvoiceAdapter
         }
         if ($documentAllowanceCharges !== []) {
             $sumLineNets = array_sum(array_map(
-                static fn (array $line): int => (int) ($line['net_minor'] ?? 0),
+                static fn (array $line): int => (int) $line['net_minor'],
                 $lines,
             ));
             // Non-zero document-level allowance/charge that moves the invoice net
