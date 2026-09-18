@@ -79,9 +79,11 @@ class SyncCommand extends Command
                     if ($drain) {
                         $result = $transactions->drainCatchUp($account);
                         $this->reportDrain((int) $account->getKey(), $result);
+                        $this->warnIfEvidenceGap((int) $account->getKey());
                     } else {
                         $transactions->sync($account, $from, $to);
                         $this->warnIfTruncated((int) $account->getKey());
+                        $this->warnIfEvidenceGap((int) $account->getKey());
                     }
                 }
             }
@@ -188,5 +190,52 @@ class SyncCommand extends Command
                 ));
             }
         }
+    }
+
+    /**
+     * A completed sync without matched statement/balance evidence must not be
+     * read as completeness proof. Surface retained gaps and mismatches.
+     */
+    private function warnIfEvidenceGap(int $accountId): void
+    {
+        $run = BankSyncRun::query()
+            ->where('accounting_bank_account_id', $accountId)
+            ->latest('id')
+            ->first();
+
+        if (! $run instanceof BankSyncRun) {
+            return;
+        }
+
+        $evidence = $run->reconciliation_evidence;
+        if (! is_array($evidence) || ! isset($evidence['status'])) {
+            $this->warn(sprintf(
+                'Account %d: sync retained no statement/balance reconciliation evidence; do not treat success as completeness.',
+                $accountId,
+            ));
+
+            return;
+        }
+
+        $status = (string) $evidence['status'];
+        if ($status === 'matched') {
+            return;
+        }
+
+        if ($status === 'mismatched') {
+            $this->error(sprintf(
+                'Account %d: statement/balance reconciliation mismatched (delta_minor=%s). Sync is not completeness proof.',
+                $accountId,
+                $evidence['delta_minor'] ?? 'n/a',
+            ));
+
+            return;
+        }
+
+        $this->warn(sprintf(
+            'Account %d: statement/balance evidence status=%s; successful sync alone is not completeness proof.',
+            $accountId,
+            $status,
+        ));
     }
 }
