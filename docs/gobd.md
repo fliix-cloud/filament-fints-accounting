@@ -6,7 +6,7 @@ assessment._
 
 ## Verdict and claim boundary
 
-The package is **not ready for an unqualified “GoBD-konform” claim**. It contains
+The package is **not ready for an unqualified "GoBD-konform" claim**. It contains
 useful controls, but a defensible claim requires a tested release, a defined
 scope, and evidence that the host deployment and operating procedures meet the
 requirements. No supported persistent-installation baseline or production
@@ -41,6 +41,22 @@ The current implementation and documentation describe these controls:
 These are technical controls and test evidence, not proof that every business
 case, deployment, or statutory obligation is covered.
 
+## Recent F7 progress (September 2026)
+
+Shipped on `main`, still **not** a claim that F7 is closed:
+
+- **AllowanceCharge subset:** UBL/CII line- and document-level nodes are detected.
+  Line nets already reflected in line totals are imported with metadata; unknown
+  structures and non-reconciling amounts fail closed and keep intake evidence
+  (`UblEInvoiceParser`, `ZugferdEInvoiceAdapter`, related tests).
+- **DE EUR tax mapping:** EN 16931 / UNTDID 5305 category + rate map onto package
+  codes (`DE-19`, `DE-7`, `DE-0`, `DE-RC`, `DE-IG-ACQ`, `DE-EXPORT`), including
+  temporary COVID 16%/5% rates. Unknown rates and inconsistent pairs fail closed
+  (`MapImportedEInvoiceTax`). Foreign VAT remains rejected.
+
+Still open for F7: schema / full EN 16931 business-rule validation, and any
+allowance/charge shapes outside the supported subset.
+
 ## Open release and operating gaps
 
 The following remain material limits on an unqualified claim:
@@ -57,19 +73,22 @@ The following remain material limits on an unqualified claim:
    integrations, bulk-write paths, and host wiring still require a complete
    least-privilege audit. ORM guards do not protect privileged SQL or storage
    access.
-4. **Accounting correctness:** remaining tax, rounding, credit-note, allowance,
-   charge, and business-rule cases need reviewed expected results. Foreign
-   currency remains unsupported and must not be inferred from balanced postings.
-5. **E-invoice conformity:** parsing/extraction and local checks are not complete
+4. **Accounting correctness:** F6 core paths (EUR-only, discounts, credit notes)
+   are largely in place; remaining tax, rounding, and edge cases still need
+   reviewed expected results. Foreign currency remains unsupported and must not
+   be inferred from balanced postings.
+5. **E-invoice conformity:** the AllowanceCharge subset and DE EUR tax mapping
+   above are progress only. Parsing/extraction and local checks are not complete
    format or business-rule validation. Unsupported or mismatching input must
    remain preserved and visible rather than being booked.
 6. **Master data and connection boundaries:** catalog transfer still needs
    connection-consistency and historical-change evidence. The host must use the
    documented single accounting connection unless a separately tested setup is
    provided.
-7. **Bank completeness:** sequential catch-up is tracked, but concurrent/SCA
-   interruption behavior, pending-to-booked transitions, statement/balance
-   reconciliation, and backlog controls need operational evidence.
+7. **Bank completeness:** oldest-first catch-up chunking and gap reporting exist;
+   an automatic multi-chunk drain loop, concurrent/SCA interruption behavior,
+   pending-to-booked transitions, statement/balance reconciliation, and backlog
+   controls still need implementation or operational evidence.
 8. **Release baseline:** a supported schema baseline, upgrade matrix, migration
    policy for retained data, rollback limits, dependency state, and recovery
    procedure must be published before a production release claim.
@@ -101,6 +120,6 @@ consider wording such as:
 > specified requirements.
 
 Any stronger German marketing wording needs accounting and legal review. This
- document should be updated with the exact version, scope, evidence set, and
+document should be updated with the exact version, scope, evidence set, and
 remaining limitations rather than converting historical test results into a
 blanket compliance statement.

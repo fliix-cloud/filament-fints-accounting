@@ -18,6 +18,7 @@ use FilamentAccounting\Models\PartyAddress;
 use FilamentAccounting\Models\PartyTaxId;
 use FilamentAccounting\Models\PurchaseInvoiceIntake;
 use FilamentAccounting\Ownership\LegalEntityScope;
+use FilamentAccounting\Tax\MapImportedEInvoiceTax;
 use horstoeko\zugferd\ZugferdDocumentPdfReaderExt;
 use Illuminate\Support\Str;
 
@@ -33,6 +34,7 @@ final class ImportPurchaseInvoice
         private readonly LegalEntityScope $entities,
         private readonly PurchaseInvoiceIntakeStore $intakes,
         private readonly AuditLogger $audit,
+        private readonly MapImportedEInvoiceTax $taxMapping,
     ) {}
 
     public function handle(
@@ -92,8 +94,6 @@ final class ImportPurchaseInvoice
                 return $result;
             });
         } catch (\Throwable $exception) {
-            // The independently committed intake survives the business rollback.
-            // A failure to record the outcome must not mask the processing error.
             try {
                 $entity->getConnection()->transaction(function () use ($entity, $intake, $exception, $attempt): void {
                     LegalEntity::query()->whereKey($entity->getKey())->lockForUpdate()->firstOrFail();
@@ -179,8 +179,8 @@ final class ImportPurchaseInvoice
                 'tax_minor' => $parsed->taxMinor,
                 'gross_minor' => $parsed->grossMinor,
             ] : null,
+            'document_allowance_charges' => $parsed?->meta['document_allowance_charges'] ?? [],
         ];
-        // Business writes share one transaction; retained intake bytes are independent.
         $document = $this->invoices->createDraft($entity, [
             'party_id' => $party?->getKey(),
             'supplier_invoice_number' => $parsed?->documentNumber ?: null,
@@ -199,7 +199,6 @@ final class ImportPurchaseInvoice
             if (isset($intake->files['companion'])) {
                 $this->linkOriginal($intake, $document, 'companion', $eInvoiceSourceType);
             } elseif (strtolower((string) pathinfo($filename, PATHINFO_EXTENSION)) === 'xml') {
-                // Standalone XML is the original itself, not a second required file.
             } else {
                 $this->attachments->handle(
                     $entity,
@@ -356,17 +355,13 @@ final class ImportPurchaseInvoice
     /** @param array<string, mixed> $line */
     private function importedLine(array $line, int $sourceIndex): array
     {
-        $rate = isset($line['tax_rate_bp']) ? (int) $line['tax_rate_bp'] : 0;
-        $taxCode = match ($rate) {
-            1900 => 'DE-19',
-            700 => 'DE-7',
-            0 => 'DE-0',
-            default => null,
-        };
+        $rate = array_key_exists('tax_rate_bp', $line) && $line['tax_rate_bp'] !== null
+            ? (int) $line['tax_rate_bp']
+            : null;
+        $category = filled($line['tax_category'] ?? null) ? (string) $line['tax_category'] : null;
+        // Fail closed on unknown EN 16931 rate/category combinations — never invent a tax code.
+        $taxCode = $this->taxMapping->code($rate, $category);
 
-        // A parsed e-invoice line may carry its own net (after a line-level
-        // allowance or charge) that differs from quantity × unit price. Carry it
-        // through so the draft posts the source amount and the totals reconcile.
         $netMinor = $line['net_minor'] ?? $line['line_net_minor'] ?? null;
 
         return [
@@ -377,7 +372,7 @@ final class ImportPurchaseInvoice
             'net_minor' => $netMinor,
             'tax_code' => $taxCode,
             'imported_tax_code' => $taxCode,
-            'imported_tax_rate_bp' => $rate,
+            'imported_tax_rate_bp' => $rate ?? 0,
             'source_line_index' => $sourceIndex,
             'source_line_hash' => hash('sha256', app(CanonicalJson::class)->encode($line)),
             'classification_code' => null,
