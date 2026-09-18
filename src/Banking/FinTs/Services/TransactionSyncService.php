@@ -170,6 +170,48 @@ class TransactionSyncService
     }
 
     /**
+     * Repeatedly sync one account until the catch-up marker is cleared, SCA
+     * interrupts, or the configured chunk budget is reached. Each successful
+     * chunk advances {@see AccountingBankAccount::$catch_up_from}; callers must
+     * not assume completeness when the marker remains or SCA is required.
+     *
+     * @return array{outcome: ScaOutcome, chunks: int, complete: bool, stopped_for: string}
+     */
+    public function drainCatchUp(
+        AccountingBankAccount $account,
+        ?Model $actor = null,
+        ?string $returnUrl = null,
+    ): array {
+        $maxChunks = max(1, (int) config('filament-accounting.banking.fints.sync.max_drain_chunks', 20));
+        $chunks = 0;
+        $outcome = null;
+
+        do {
+            $outcome = $this->sync($account, null, null, $actor, $returnUrl);
+            $chunks++;
+            $account->refresh();
+
+            if (! $outcome->isDone()) {
+                return [
+                    'outcome' => $outcome,
+                    'chunks' => $chunks,
+                    'complete' => false,
+                    'stopped_for' => 'sca',
+                ];
+            }
+        } while ($account->catch_up_from instanceof \DateTimeInterface && $chunks < $maxChunks);
+
+        $complete = ! ($account->catch_up_from instanceof \DateTimeInterface);
+
+        return [
+            'outcome' => $outcome,
+            'chunks' => $chunks,
+            'complete' => $complete,
+            'stopped_for' => $complete ? 'done' : 'max_chunks',
+        ];
+    }
+
+    /**
      * Compute the next catch-up chunk from the oldest uncovered date forward.
      * Chunks tile the range oldest-first so repeated syncs drain a long gap
      * without holes. `nextFrom` is null once the whole range fits in one chunk.

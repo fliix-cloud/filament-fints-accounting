@@ -85,10 +85,11 @@ The following remain material limits on an unqualified claim:
    connection-consistency and historical-change evidence. The host must use the
    documented single accounting connection unless a separately tested setup is
    provided.
-7. **Bank completeness:** oldest-first catch-up chunking and gap reporting exist;
-   an automatic multi-chunk drain loop, concurrent/SCA interruption behavior,
-   pending-to-booked transitions, statement/balance reconciliation, and backlog
-   controls still need implementation or operational evidence.
+7. **Bank completeness:** oldest-first catch-up chunking, gap reporting, and an
+   automatic multi-chunk drain loop (`drainCatchUp` / SyncCommand `--drain`) are
+   in place. Concurrent/SCA interruption behavior, pending-to-booked transitions,
+   statement/balance reconciliation, and backlog controls still need
+   implementation or operational evidence.
 8. **Release baseline:** a supported schema baseline, upgrade matrix, migration
    policy for retained data, rollback limits, dependency state, and recovery
    procedure must be published before a production release claim.

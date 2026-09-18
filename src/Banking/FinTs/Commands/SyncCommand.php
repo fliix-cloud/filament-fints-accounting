@@ -21,7 +21,9 @@ class SyncCommand extends Command
         {--balances : Sync balances}
         {--transactions : Sync transactions}
         {--from= : Statement start date Y-m-d}
-        {--to= : Statement end date Y-m-d}';
+        {--to= : Statement end date Y-m-d}
+        {--drain : Keep syncing each account until catch-up is cleared (default: config)}
+        {--no-drain : Sync only one transaction chunk per account}';
 
     protected $description = 'Synchronize FinTS accounts, balances, or transactions without interactive payments';
 
@@ -73,8 +75,14 @@ class SyncCommand extends Command
                 if ($doTransactions) {
                     $from = $requestedFrom ? Carbon::parse($requestedFrom) : null;
                     $to = $this->option('to') ? Carbon::parse($this->option('to')) : null;
-                    $transactions->sync($account, $from, $to);
-                    $this->warnIfTruncated((int) $account->getKey());
+                    $drain = $this->shouldDrain($from, $to);
+                    if ($drain) {
+                        $result = $transactions->drainCatchUp($account);
+                        $this->reportDrain((int) $account->getKey(), $result);
+                    } else {
+                        $transactions->sync($account, $from, $to);
+                        $this->warnIfTruncated((int) $account->getKey());
+                    }
                 }
             }
         }
@@ -82,6 +90,58 @@ class SyncCommand extends Command
         $this->info('Synchronization finished.');
 
         return self::SUCCESS;
+    }
+
+    /**
+     * Drain when no explicit range was requested and the operator did not pass
+     * --no-drain. Explicit --from/--to means a single bounded pull.
+     */
+    private function shouldDrain(mixed $from, mixed $to): bool
+    {
+        if ($from !== null || $to !== null) {
+            return false;
+        }
+
+        if ($this->option('no-drain')) {
+            return false;
+        }
+
+        if ($this->option('drain')) {
+            return true;
+        }
+
+        return (bool) config('filament-accounting.banking.fints.sync.auto_drain', true);
+    }
+
+    /** @param array{outcome: mixed, chunks: int, complete: bool, stopped_for: string} $result */
+    private function reportDrain(int $accountId, array $result): void
+    {
+        if ($result['complete']) {
+            $this->info(sprintf(
+                'Account %d: catch-up drained in %d chunk(s).',
+                $accountId,
+                $result['chunks'],
+            ));
+
+            return;
+        }
+
+        if ($result['stopped_for'] === 'sca') {
+            $this->warn(sprintf(
+                'Account %d: catch-up paused after %d chunk(s); strong customer authentication is required.',
+                $accountId,
+                $result['chunks'],
+            ));
+
+            return;
+        }
+
+        $this->warnIfTruncated($accountId);
+        $this->warn(sprintf(
+            'Account %d: catch-up still open after %d chunk(s) (chunk budget reached). Re-run to continue.',
+            $accountId,
+            $result['chunks'],
+        ));
     }
 
     /**
@@ -121,7 +181,7 @@ class SyncCommand extends Command
                 $remainingDays = $account->catch_up_from->diffInDays(Carbon::today());
                 $chunks = (int) ceil($remainingDays / (int) config('filament-accounting.banking.fints.sync.max_range_days', 90));
                 $this->warn(sprintf(
-                    '  Catch-up gap: %s → today (%d days). Approximately %d chunk(s) remaining; run this command again to drain them.',
+                    '  Catch-up gap: %s → today (%d days). Approximately %d chunk(s) remaining; re-run (or omit --no-drain) to continue.',
                     $account->catch_up_from->toDateString(),
                     $remainingDays,
                     max(1, $chunks),
