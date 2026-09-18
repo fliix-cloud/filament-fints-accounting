@@ -17,6 +17,7 @@ use FilamentAccounting\Banking\FinTs\Support\ProductRegistration;
 use FilamentAccounting\Filament\Concerns\HasAccountingNavigation;
 use FilamentAccounting\Filament\Navigation\AccountingNavigation;
 use FilamentAccounting\Models\AccountingBankAccount;
+use FilamentAccounting\Ownership\LegalEntityScope;
 use Illuminate\Database\Eloquent\Builder;
 
 class BankSyncRunResource extends Resource
@@ -68,17 +69,23 @@ class BankSyncRunResource extends Resource
 
     public static function getEloquentQuery(): Builder
     {
-        return app(BankingBacklogService::class)
+        $key = (new BankSyncRun)->getQualifiedKeyName();
+        $openKeys = app(BankingBacklogService::class)
             ->openSyncRunsQuery()
+            ->select($key);
+
+        return parent::getEloquentQuery()
+            ->whereIn($key, $openKeys)
             ->with('account')
             ->where(function (Builder $builder): void {
                 try {
-                    $entityId = (int) app(\FilamentAccounting\Ownership\LegalEntityScope::class)->require()->getKey();
+                    $entityId = (int) app(LegalEntityScope::class)->require()->getKey();
                     $builder->where('legal_entity_id', $entityId);
                 } catch (\Throwable) {
                     $builder->whereRaw('1 = 0');
                 }
-            });
+            })
+            ->orderByDesc('id');
     }
 
     public static function table(Table $table): Table
