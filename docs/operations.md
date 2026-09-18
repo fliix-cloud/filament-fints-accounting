@@ -166,8 +166,11 @@ evidence-gap run was reviewed — acknowledgement does not clear catch-up or
 invent completeness. The Filament sync-backlog view and dashboard widget expose
 the same inventory with continue/ack actions.
 
-SCA remains a user action. Concurrent catch-up interruption behavior still needs
-operational evidence before making a completeness claim.
+SCA remains a user action. After SCA completes a transaction sync chunk, catch-up
+continues automatically under the account lock; a green single-chunk SCA result is
+not completeness while `catch_up_from` remains. Competing syncs for the same account
+fail closed (`stopped_for=concurrent`). Retain operational evidence of SCA resumes
+and blocked concurrent attempts before making a completeness claim.
 
 ## Release checks and alerting
 

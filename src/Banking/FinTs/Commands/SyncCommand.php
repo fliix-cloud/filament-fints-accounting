@@ -138,6 +138,16 @@ class SyncCommand extends Command
             return;
         }
 
+        if ($result['stopped_for'] === 'concurrent') {
+            $this->warn(sprintf(
+                'Account %d: catch-up stopped after %d chunk(s); another sync holds the account lock. Not claiming completeness.',
+                $accountId,
+                $result['chunks'],
+            ));
+
+            return;
+        }
+
         $this->warnIfTruncated($accountId);
         $this->warn(sprintf(
             'Account %d: catch-up still open after %d chunk(s) (chunk budget reached). Re-run to continue.',

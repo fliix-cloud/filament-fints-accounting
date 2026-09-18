@@ -249,7 +249,7 @@ class StrongAuthenticationCoordinator
                 }
             }
 
-            $this->finishBusiness($type, $action, $connection, $related);
+            $followUp = $this->finishBusiness($type, $action, $connection, $related, $session, $actor, $returnUrl);
             $this->markConnectionSuccessful($connection);
 
             if ($session) {
@@ -260,6 +260,11 @@ class StrongAuthenticationCoordinator
             }
 
             $this->dialogs->remember($connection, $client);
+
+            // SyncTransactions may continue catch-up and open a fresh SCA session.
+            if ($followUp instanceof ScaOutcome && ! $followUp->isDone()) {
+                return $followUp;
+            }
 
             return new ScaOutcome(ScaSessionState::Done, $session, $action, $action->successMessage);
         }
@@ -370,7 +375,7 @@ class StrongAuthenticationCoordinator
         return SendSEPADirectDebit::create($account->toSepaAccount(), $xml);
     }
 
-    private function finishBusiness(ScaOperationType $type, BaseAction $action, BankConnection $connection, ?Model $related): void
+    private function finishBusiness(ScaOperationType $type, BaseAction $action, BankConnection $connection, ?Model $related, ?StrongAuthenticationSession $session = null, ?Model $actor = null, ?string $returnUrl = null): ?ScaOutcome
     {
         if ($type === ScaOperationType::Transfer && $related instanceof BankTransfer) {
             $action->ensureDone();
@@ -385,7 +390,7 @@ class StrongAuthenticationCoordinator
                 event(new BankTransferSubmitted($related->uuid, $connection->id));
             }
 
-            return;
+            return null;
         }
 
         if ($type === ScaOperationType::DirectDebit && $related instanceof BankDirectDebit) {
@@ -401,7 +406,7 @@ class StrongAuthenticationCoordinator
                 event(new BankDirectDebitSubmitted($related->uuid, $connection->id));
             }
 
-            return;
+            return null;
         }
 
         if ($type === ScaOperationType::SyncAccounts && $action instanceof GetSEPAAccounts) {
@@ -412,7 +417,7 @@ class StrongAuthenticationCoordinator
             $this->completeSyncRun($related, $count);
             event(new BankAccountsSynced($connection->id, $count));
 
-            return;
+            return null;
         }
 
         if ($type === ScaOperationType::SyncBalances && $action instanceof GetBalance) {
@@ -425,17 +430,42 @@ class StrongAuthenticationCoordinator
             }
             $this->completeSyncRun($related, 1);
 
-            return;
+            return null;
         }
 
         if ($type === ScaOperationType::SyncTransactions && $this->statementActions->supports($action)) {
             $account = $related instanceof BankSyncRun ? $related->account : null;
             if ($account instanceof BankAccount && $related instanceof BankSyncRun) {
                 $sync = app(TransactionSyncService::class);
-                $result = $sync->importStatementDetailed($account, $this->statementActions->result($action));
-                $sync->markSyncCompleted($account, $related, $result);
+                $continued = $sync->finalizeInterruptedSyncAndContinueCatchUp(
+                    $account,
+                    $related,
+                    $this->statementActions->result($action),
+                    $actor ?? $this->actorFromSession($session),
+                    $returnUrl ?? $session?->return_url,
+                );
+
+                return $continued['outcome'] instanceof ScaOutcome ? $continued['outcome'] : null;
             }
         }
+
+        return null;
+    }
+
+    private function actorFromSession(?StrongAuthenticationSession $session): ?Model
+    {
+        if ($session === null || blank($session->confirmed_by_type) || blank($session->confirmed_by_id)) {
+            return null;
+        }
+
+        $class = Relation::getMorphedModel((string) $session->confirmed_by_type)
+            ?? (string) $session->confirmed_by_type;
+
+        if (! class_exists($class) || ! is_a($class, Model::class, true)) {
+            return null;
+        }
+
+        return $class::query()->find($session->confirmed_by_id);
     }
 
     private function completeSyncRun(?Model $related, int $count): void

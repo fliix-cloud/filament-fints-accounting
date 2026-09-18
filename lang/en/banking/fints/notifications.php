@@ -22,4 +22,5 @@ return [
     'catch_up_still_open' => 'Catch-up still open.',
     'catch_up_still_open_body' => 'Stopped after :chunks chunk(s) (:stopped). Re-run continue catch-up or resolve SCA.',
     'backlog_acknowledged' => 'Backlog item acknowledged. Catch-up and evidence gaps remain until resolved.',
+    'concurrent_sync_blocked' => 'Another sync already holds this account. Catch-up was not marked complete.',
 ];

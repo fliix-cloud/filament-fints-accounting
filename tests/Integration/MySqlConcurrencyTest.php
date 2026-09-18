@@ -6,6 +6,13 @@ use FilamentAccounting\Audit\AuditChainVerifier;
 use FilamentAccounting\Audit\InvoiceEvidenceVerifier;
 use FilamentAccounting\Audit\JournalIntegrityVerifier;
 use FilamentAccounting\Banking\Data\BankStatementLineData;
+use FilamentAccounting\Banking\FinTs\Enums\BankConnectionStatus;
+use FilamentAccounting\Banking\FinTs\Enums\SyncStatus;
+use FilamentAccounting\Banking\FinTs\Enums\SyncType;
+use FilamentAccounting\Banking\FinTs\Exceptions\ConcurrentBankSyncException;
+use FilamentAccounting\Banking\FinTs\Models\BankConnection;
+use FilamentAccounting\Banking\FinTs\Models\BankSyncRun;
+use FilamentAccounting\Banking\FinTs\Services\TransactionSyncService;
 use FilamentAccounting\Enums\DocumentStatus;
 use FilamentAccounting\Enums\PostingStatus;
 use FilamentAccounting\Enums\ReconciliationStatus;
@@ -1069,6 +1076,54 @@ class MySqlConcurrencyTest extends TestCase
             usleep(50000);
         }
         throw new \RuntimeException('Parent did not terminate paused worker.');
+    }
+
+    #[Test]
+    public function transaction_sync_claim_serializes_competing_account_locks(): void
+    {
+        // House pattern: lockForUpdate on the bank account row before claiming a
+        // transaction sync. This process-local check documents the invariant;
+        // cross-process coverage remains the existing entity-lock suite.
+        $entity = $this->makeEntity();
+        $connection = BankConnection::query()->create([
+            'legal_entity_id' => $entity->id,
+            'display_name' => 'Concurrency Connection',
+            'bank_code' => 'CONC0000',
+            'endpoint_url' => 'https://example.com/fints',
+            'username' => 'u',
+            'pin' => 'p',
+            'status' => BankConnectionStatus::Active,
+        ]);
+        $account = $this->makeBankAccount($entity);
+        $account->bank_connection_id = $connection->id;
+        $account->source = 'fints';
+        $account->external_account_id = 'conc-'.$account->id;
+        $account->save();
+
+        BankSyncRun::query()->create([
+            'bank_connection_id' => $connection->id,
+            'accounting_bank_account_id' => $account->id,
+            'legal_entity_id' => $account->legal_entity_id,
+            'type' => SyncType::Transactions,
+            'status' => SyncStatus::Running,
+            'from_date' => now()->subDays(3)->toDateString(),
+            'to_date' => now()->toDateString(),
+            'started_at' => now(),
+        ]);
+
+        $svc = app(TransactionSyncService::class);
+        $method = new \ReflectionMethod($svc, 'claimExclusiveTransactionSync');
+        $method->setAccessible(true);
+
+        $this->expectException(ConcurrentBankSyncException::class);
+        $method->invoke(
+            $svc,
+            $account,
+            $connection,
+            now()->subDays(2),
+            now(),
+            null,
+        );
     }
 
     private function waitForLock(Process $process, string $ipc): void

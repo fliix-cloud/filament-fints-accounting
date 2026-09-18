@@ -97,8 +97,13 @@ The following remain material limits on an unqualified claim:
    failed/attention/stuck sync runs, pending intakes, and statement lines needing
    review (`BankingBacklogService`, `filament-accounting:banking-backlog`,
    Filament sync-backlog resource/widget, continue/ack actions). Acknowledgement
-   records operator review without inventing completeness. Concurrent/SCA
-   interruption behavior still needs implementation or operational evidence.
+   records operator review without inventing completeness. Concurrent syncs on
+   the same account fail closed under a row lock while another run is `running`
+   or awaiting SCA; SCA completion of a transaction sync resumes catch-up via
+   `finalizeInterruptedSyncAndContinueCatchUp` / `drainCatchUp` and never claims
+   completeness while `catch_up_from` remains or a follow-up SCA/concurrent stop
+   recurs. Hosts should still retain operational evidence of SCA resumes and
+   competing sync attempts.
 8. **Release baseline:** a supported schema baseline, upgrade matrix, migration
    policy for retained data, rollback limits, dependency state, and recovery
    procedure must be published before a production release claim.

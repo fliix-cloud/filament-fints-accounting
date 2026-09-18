@@ -22,4 +22,5 @@ return [
     'tan_medium_not_allowed' => 'This TAN method does not use a TAN medium. Clear the medium and try again.',
     'tan_mode_unknown' => 'The selected TAN method is not available for this bank connection. Discover TAN methods again.',
     'login_required' => 'The bank connection must be logged in before this operation. Test the connection, then try again.',
+    'concurrent_sync' => 'Another transaction sync is already running or waiting for SCA on this account.',
 ];

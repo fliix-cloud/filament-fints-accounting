@@ -11,6 +11,7 @@ use FilamentAccounting\Banking\FinTs\Services\TransactionSyncService;
 use FilamentAccounting\Banking\FinTs\Support\FintsUi;
 use FilamentAccounting\Contracts\AccountingActorResolver;
 use FilamentAccounting\Models\AccountingBankAccount;
+use Illuminate\Database\Eloquent\Relations\Relation;
 use Livewire\Attributes\Locked;
 
 trait InteractsWithBankAccountSync
@@ -34,6 +35,16 @@ trait InteractsWithBankAccountSync
         if (($result['stopped_for'] ?? null) === 'sca') {
             Notification::make()
                 ->title(__('filament-accounting::banking/fints/notifications.sca_required'))
+                ->warning()
+                ->send();
+            $this->refreshBankSyncUi();
+
+            return;
+        }
+
+        if (($result['stopped_for'] ?? null) === 'concurrent') {
+            Notification::make()
+                ->title(__('filament-accounting::banking/fints/notifications.concurrent_sync_blocked'))
                 ->warning()
                 ->send();
             $this->refreshBankSyncUi();
@@ -112,9 +123,30 @@ trait InteractsWithBankAccountSync
         }
 
         if ($this->combinedBankSyncStage === 'transactions' && $operation === ScaOperationType::SyncTransactions) {
+            $account = AccountingBankAccount::query()->find($this->combinedBankSyncAccountId);
+            if ($account instanceof AccountingBankAccount && $account->catch_up_from instanceof \DateTimeInterface) {
+                // Combined flow still has catch-up work; drain without claiming completeness.
+                $this->clearCombinedBankSync();
+                $this->continueCatchUpDrain($account);
+
+                return;
+            }
+
             $this->finishCombinedBankSync();
 
             return;
+        }
+
+        if ($operation === ScaOperationType::SyncTransactions) {
+            $account = $this->accountFromScaOutcome($outcome);
+            if ($account instanceof AccountingBankAccount && $account->catch_up_from instanceof \DateTimeInterface) {
+                // Coordinator already continues catch-up after SCA; if a frontier
+                // remains (budget / nested SCA), keep draining from the UI path
+                // without claiming completeness.
+                $this->continueCatchUpDrain($account);
+
+                return;
+            }
         }
 
         $this->refreshBankSyncUi();
@@ -186,6 +218,38 @@ trait InteractsWithBankAccountSync
             ->title(__("filament-accounting::banking/fints/notifications.{$message}"))
             ->success()
             ->send();
+    }
+
+    private function accountFromScaOutcome(ScaOutcome $outcome): ?AccountingBankAccount
+    {
+        $session = $outcome->session;
+        if ($session === null || blank($session->related_type) || blank($session->related_id)) {
+            return null;
+        }
+
+        $class = Relation::getMorphedModel((string) $session->related_type)
+            ?? (string) $session->related_type;
+
+        if (! is_string($class) || ! class_exists($class)) {
+            return null;
+        }
+
+        $related = $class::query()->find($session->related_id);
+        if ($related instanceof AccountingBankAccount) {
+            return $related;
+        }
+
+        if (is_object($related) && isset($related->account) && $related->account instanceof AccountingBankAccount) {
+            return $related->account;
+        }
+
+        if (is_object($related) && method_exists($related, 'account')) {
+            $account = $related->account;
+
+            return $account instanceof AccountingBankAccount ? $account : null;
+        }
+
+        return null;
     }
 
     private function refreshBankSyncUi(): void

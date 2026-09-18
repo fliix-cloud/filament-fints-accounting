@@ -4,6 +4,7 @@ namespace FilamentAccounting\Tests\Banking;
 
 use FilamentAccounting\Banking\FinTs\Data\ScaOutcome;
 use FilamentAccounting\Banking\FinTs\Enums\ScaSessionState;
+use FilamentAccounting\Banking\FinTs\Exceptions\ConcurrentBankSyncException;
 use FilamentAccounting\Banking\FinTs\Services\TransactionSyncService;
 use FilamentAccounting\Models\AccountingBankAccount;
 use FilamentAccounting\Tests\TestCase;
@@ -78,5 +79,24 @@ class CatchUpDrainTest extends TestCase
         $this->assertSame(2, $result['chunks']);
         $this->assertFalse($result['complete']);
         $this->assertSame('max_chunks', $result['stopped_for']);
+    }
+
+    #[Test]
+    public function drain_catch_up_stops_for_concurrent_competitors_without_claiming_complete(): void
+    {
+        $account = Mockery::mock(AccountingBankAccount::class)->makePartial();
+        $account->catch_up_from = Carbon::today()->subDays(200);
+        $account->shouldReceive('refresh')->andReturnSelf();
+
+        $svc = Mockery::mock(TransactionSyncService::class)->makePartial();
+        $svc->shouldReceive('sync')
+            ->once()
+            ->andThrow(new ConcurrentBankSyncException('busy'));
+
+        $result = $svc->drainCatchUp($account);
+
+        $this->assertSame(0, $result['chunks']);
+        $this->assertFalse($result['complete']);
+        $this->assertSame('concurrent', $result['stopped_for']);
     }
 }
