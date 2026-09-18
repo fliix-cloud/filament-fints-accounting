@@ -94,6 +94,10 @@ class SyncCommand extends Command
         return self::SUCCESS;
     }
 
+    /**
+     * Drain when no explicit range was requested and the operator did not pass
+     * --no-drain. Explicit --from/--to means a single bounded pull.
+     */
     private function shouldDrain(mixed $from, mixed $to): bool
     {
         if ($from !== null || $to !== null) {
@@ -152,6 +156,15 @@ class SyncCommand extends Command
         ));
     }
 
+    /**
+     * A sync that silently drops the requested range would look successful while
+     * omitting bookings. Surface the recorded gap so operators do not infer
+     * completeness from a green run.
+     *
+     * The service now persists the gap as {@see AccountingBankAccount::$catch_up_from}
+     * and resumes automatically on the next sync. This warning confirms the
+     * chunked progress and the remaining gap.
+     */
     private function warnIfTruncated(int $accountId): void
     {
         $account = BankAccount::query()->find($accountId);
@@ -165,6 +178,8 @@ class SyncCommand extends Command
             ->latest('id')
             ->first();
 
+        // requestFrom carries the still-uncovered frontier (oldest-first drain),
+        // so a non-null value means more chunks remain for this account.
         if ($run instanceof BankSyncRun && $run->requested_from_date !== null) {
             $this->warn(sprintf(
                 'Account %d: only %s to %s synchronized; coverage gap remains from %s.',
@@ -187,6 +202,10 @@ class SyncCommand extends Command
         }
     }
 
+    /**
+     * A completed sync without matched statement/balance evidence must not be
+     * read as completeness proof. Surface retained gaps and mismatches.
+     */
     private function warnIfEvidenceGap(int $accountId): void
     {
         $run = BankSyncRun::query()

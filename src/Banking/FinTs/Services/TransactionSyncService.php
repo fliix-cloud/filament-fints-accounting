@@ -9,9 +9,11 @@ use FilamentAccounting\Banking\FinTs\Contracts\FintsClientFactory;
 use FilamentAccounting\Banking\FinTs\Data\ScaOutcome;
 use FilamentAccounting\Banking\FinTs\Data\StatementBalanceEvidence;
 use FilamentAccounting\Banking\FinTs\Enums\ScaOperationType;
+use FilamentAccounting\Banking\FinTs\Enums\ScaSessionState;
 use FilamentAccounting\Banking\FinTs\Enums\SyncStatus;
 use FilamentAccounting\Banking\FinTs\Enums\SyncType;
 use FilamentAccounting\Banking\FinTs\Events\BankTransactionsSynced;
+use FilamentAccounting\Banking\FinTs\Exceptions\ConcurrentBankSyncException;
 use FilamentAccounting\Banking\FinTs\Exceptions\UnsupportedCapabilityException;
 use FilamentAccounting\Banking\FinTs\Models\BankConnection;
 use FilamentAccounting\Banking\FinTs\Models\BankSyncRun;
@@ -57,16 +59,13 @@ class TransactionSyncService
         }
         [$from, $to, $nextFrom] = $this->boundedRange(Carbon::parse($from), Carbon::parse($to));
 
-        $run = BankSyncRun::query()->create([
-            'bank_connection_id' => $connection->id,
-            'accounting_bank_account_id' => $account->id,
-            'type' => SyncType::Transactions,
-            'status' => SyncStatus::Running,
-            'from_date' => $from,
-            'to_date' => $to,
-            'requested_from_date' => $nextFrom ?: null,
-            'started_at' => now(),
-        ]);
+        $run = $this->claimExclusiveTransactionSync(
+            $account,
+            $connection,
+            Carbon::parse($from),
+            Carbon::parse($to),
+            $nextFrom ? Carbon::parse($nextFrom) : null,
+        );
         $client = $this->factory->make($connection);
         $action = $this->statementActions->create(
             $client,
@@ -193,6 +192,43 @@ class TransactionSyncService
     }
 
     /**
+     * Finalize an SCA-interrupted transaction sync, then continue catch-up.
+     *
+     * Never reports complete while catch_up_from remains, or when a follow-up
+     * SCA / concurrent competitor stops the drain.
+     *
+     * @return array{outcome: ScaOutcome, chunks: int, complete: bool, stopped_for: string}
+     */
+    public function finalizeInterruptedSyncAndContinueCatchUp(
+        AccountingBankAccount $account,
+        BankSyncRun $run,
+        StatementOfAccount $statement,
+        ?Model $actor = null,
+        ?string $returnUrl = null,
+    ): array {
+        $result = $this->importStatementDetailed($account, $statement);
+        $evidence = $this->balanceReconciler->forStatement(
+            $account,
+            $statement,
+            $run->from_date,
+            $run->to_date,
+        );
+        $this->markSyncCompleted($account, $run, $result, $evidence);
+        $account->refresh();
+
+        if (! ($account->catch_up_from instanceof \DateTimeInterface)) {
+            return [
+                'outcome' => new ScaOutcome(ScaSessionState::Done),
+                'chunks' => 0,
+                'complete' => true,
+                'stopped_for' => 'done',
+            ];
+        }
+
+        return $this->drainCatchUp($account, $actor, $returnUrl);
+    }
+
+    /**
      * @return array{outcome: ScaOutcome, chunks: int, complete: bool, stopped_for: string}
      */
     public function drainCatchUp(
@@ -205,7 +241,16 @@ class TransactionSyncService
         $outcome = null;
 
         do {
-            $outcome = $this->sync($account, null, null, $actor, $returnUrl);
+            try {
+                $outcome = $this->sync($account, null, null, $actor, $returnUrl);
+            } catch (ConcurrentBankSyncException) {
+                return [
+                    'outcome' => $outcome ?? new ScaOutcome(ScaSessionState::Done),
+                    'chunks' => $chunks,
+                    'complete' => false,
+                    'stopped_for' => 'concurrent',
+                ];
+            }
             $chunks++;
             $account->refresh();
 
@@ -227,6 +272,57 @@ class TransactionSyncService
             'complete' => $complete,
             'stopped_for' => $complete ? 'done' : 'max_chunks',
         ];
+    }
+
+    /**
+     * Serialize transaction-sync claims per account so concurrent workers cannot
+     * overlap catch-up ranges or race catch_up_from updates.
+     */
+    private function claimExclusiveTransactionSync(
+        AccountingBankAccount $account,
+        BankConnection $connection,
+        Carbon $from,
+        Carbon $to,
+        ?Carbon $nextFrom,
+    ): BankSyncRun {
+        return $account->getConnection()->transaction(function () use ($account, $connection, $from, $to, $nextFrom): BankSyncRun {
+            AccountingBankAccount::query()
+                ->whereKey($account->getKey())
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            // Running always blocks. RequiresAttention only blocks while unfinished
+            // (SCA wait). Finished mismatch/attention runs must not freeze catch-up.
+            $blocking = BankSyncRun::query()
+                ->where('accounting_bank_account_id', $account->getKey())
+                ->where('type', SyncType::Transactions)
+                ->where(function ($query): void {
+                    $query->where('status', SyncStatus::Running)
+                        ->orWhere(function ($query): void {
+                            $query->where('status', SyncStatus::RequiresAttention)
+                                ->whereNull('finished_at');
+                        });
+                })
+                ->lockForUpdate()
+                ->exists();
+
+            if ($blocking) {
+                throw new ConcurrentBankSyncException(
+                    'A transaction sync is already running or waiting for strong customer authentication on this account.'
+                );
+            }
+
+            return BankSyncRun::query()->create([
+                'bank_connection_id' => $connection->id,
+                'accounting_bank_account_id' => $account->id,
+                'type' => SyncType::Transactions,
+                'status' => SyncStatus::Running,
+                'from_date' => $from,
+                'to_date' => $to,
+                'requested_from_date' => $nextFrom,
+                'started_at' => now(),
+            ]);
+        });
     }
 
     /**
