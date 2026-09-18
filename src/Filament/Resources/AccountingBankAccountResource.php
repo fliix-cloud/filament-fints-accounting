@@ -121,7 +121,7 @@ class AccountingBankAccountResource extends Resource
                     ->color('warning')
                     ->visible(fn (AccountingBankAccount $record): bool => $record->bank_connection_id !== null && $record->catch_up_from !== null)
                     ->disabled(fn (AccountingBankAccount $record): bool => ! ProductRegistration::isConfigured() || ! $record->isUsable())
-                    ->tooltip(fn (): ?string => ProductRegistration::isConfigured()
+                    ->tooltip(fn (): string => ProductRegistration::isConfigured()
                         ? __('filament-accounting::banking/fints/fields.backlog_catch_up_help')
                         : __('filament-accounting::banking/fints/notifications.product_id_missing'))
                     ->action(fn (AccountingBankAccount $record, ListAccountingBankAccounts $livewire) => $livewire->continueCatchUpDrain($record)),
