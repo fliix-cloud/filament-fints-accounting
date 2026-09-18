@@ -8,10 +8,12 @@ use Filament\Support\Enums\Width;
 use FilamentAccounting\Banking\FinTs\Filament\Pages\StrongAuthentication;
 use FilamentAccounting\Banking\FinTs\Filament\Resources\BankConnectionResource;
 use FilamentAccounting\Banking\FinTs\Filament\Resources\BankDirectDebitResource;
+use FilamentAccounting\Banking\FinTs\Filament\Resources\BankSyncRunResource;
 use FilamentAccounting\Banking\FinTs\Filament\Resources\BankTransferResource;
 use FilamentAccounting\Banking\FinTs\Filament\Resources\DirectDebitCreditorProfileResource;
 use FilamentAccounting\Banking\FinTs\Filament\Resources\DirectDebitMandateResource;
 use FilamentAccounting\Banking\FinTs\Filament\Widgets\BankBalancesWidget;
+use FilamentAccounting\Banking\FinTs\Filament\Widgets\BankingBacklogWidget;
 use FilamentAccounting\Filament\Pages\ReconciliationPage;
 use FilamentAccounting\Filament\Resources\AccountingBankAccountResource;
 use FilamentAccounting\Filament\Resources\AuditEventResource;
@@ -45,7 +47,7 @@ class PluginToggleTest extends TestCase
             'catalog' => [CatalogItemResource::class],
             'sales_invoices' => [SalesInvoiceResource::class],
             'purchase_invoices' => [PurchaseInvoiceResource::class],
-            'bank_reconciliation' => [AccountingBankAccountResource::class, BankStatementLineResource::class, BankTransferResource::class, BankDirectDebitResource::class, ReconciliationLearningRuleResource::class, ReconciliationPage::class, StrongAuthentication::class, BankBalancesWidget::class],
+            'bank_reconciliation' => [AccountingBankAccountResource::class, BankSyncRunResource::class, BankStatementLineResource::class, BankTransferResource::class, BankDirectDebitResource::class, ReconciliationLearningRuleResource::class, ReconciliationPage::class, StrongAuthentication::class, BankBalancesWidget::class, BankingBacklogWidget::class],
             'journal' => [JournalEntryResource::class],
             'chart_of_accounts' => [LedgerAccountResource::class],
             'tax_and_posting_rules' => [TaxCodeResource::class, PostingRuleResource::class],
