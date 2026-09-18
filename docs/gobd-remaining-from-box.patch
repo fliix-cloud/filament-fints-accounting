@@ -8,3 +8,151 @@ index 3c94c93..e3e326e 100644
      'allowance_charge_totals_mismatch' => 'Zu-/Abschläge stimmen nicht mit den Rechnungsgesamtsummen überein (:detail). Das Original bleibt zur Prüfung erhalten.',
 +    'purchase_line_source_evidence_required' => 'Übernommene Einkaufszeilen benötigen einen source_line_hash mit Bindung an das Original.',
  ];
+diff --git a/src/Banking/FinTs/Services/BankingBacklogService.php b/src/Banking/FinTs/Services/BankingBacklogService.php
+index 791d673..6e463a3 100644
+--- a/src/Banking/FinTs/Services/BankingBacklogService.php
++++ b/src/Banking/FinTs/Services/BankingBacklogService.php
+@@ -4,6 +4,7 @@ namespace FilamentAccounting\Banking\FinTs\Services;
+ 
+ use FilamentAccounting\Banking\FinTs\Enums\SyncStatus;
+ use FilamentAccounting\Banking\FinTs\Models\BankSyncRun;
++use FilamentAccounting\Contracts\AccountingAuthorizer;
+ use FilamentAccounting\Models\AccountingBankAccount;
+ use FilamentAccounting\Models\BankStatementLine;
+ use FilamentAccounting\Models\PurchaseInvoiceIntake;
+@@ -24,6 +25,10 @@ class BankingBacklogService
+ 
+     public const STUCK_RUNNING_HOURS = 2;
+ 
++    public function __construct(
++        private readonly AccountingAuthorizer $authorizer,
++    ) {}
++
+     /**
+      * @return array{
+      *     catch_up_accounts: int,
+@@ -140,6 +145,7 @@ class BankingBacklogService
+      */
+     public function acknowledgeSyncRun(BankSyncRun $run, ?string $note = null): BankSyncRun
+     {
++        $this->authorizer->authorize('sync_bank', $run->account ?? $run);
+         if (! in_array($run->status, [SyncStatus::Failed, SyncStatus::RequiresAttention, SyncStatus::Completed], true)) {
+             throw new \InvalidArgumentException('Only failed, attention, or completed (evidence gap) runs can be acknowledged.');
+         }
+@@ -187,6 +193,7 @@ class BankingBacklogService
+      */
+     public function continueCatchUp(?int $legalEntityId = null): array
+     {
++        $this->authorizer->authorize('sync_bank');
+         $transactions = app(TransactionSyncService::class);
+         $results = [];
+ 
+diff --git a/src/Banking/FinTs/Services/TransactionSyncService.php b/src/Banking/FinTs/Services/TransactionSyncService.php
+index 9ea4281..6da7ece 100644
+--- a/src/Banking/FinTs/Services/TransactionSyncService.php
++++ b/src/Banking/FinTs/Services/TransactionSyncService.php
+@@ -19,6 +19,7 @@ use FilamentAccounting\Banking\FinTs\Models\BankConnection;
+ use FilamentAccounting\Banking\FinTs\Models\BankSyncRun;
+ use FilamentAccounting\Banking\FinTs\Support\TransactionFingerprint;
+ use FilamentAccounting\Banking\Services\UnifiedBankTransactionImporter;
++use FilamentAccounting\Contracts\AccountingAuthorizer;
+ use FilamentAccounting\Models\AccountingBankAccount;
+ use FilamentAccounting\Models\BankStatementLine;
+ use FilamentAccounting\Support\ExactMoney;
+@@ -34,6 +35,7 @@ class TransactionSyncService
+         private readonly UnifiedBankTransactionImporter $importer,
+         private readonly StatementActionFactory $statementActions,
+         private readonly StatementBalanceReconciler $balanceReconciler,
++        private readonly AccountingAuthorizer $authorizer,
+     ) {}
+ 
+     public function sync(
+@@ -43,6 +45,7 @@ class TransactionSyncService
+         ?Model $actor = null,
+         ?string $returnUrl = null,
+     ): ScaOutcome {
++        $this->authorizer->authorize('sync_bank', $account);
+         $this->assertUsable($account);
+         $connection = $account->connection;
+         if (! $connection instanceof BankConnection) {
+@@ -236,6 +239,7 @@ class TransactionSyncService
+         ?Model $actor = null,
+         ?string $returnUrl = null,
+     ): array {
++        // Authorization is enforced on each sync() chunk (and Filament entry points).
+         $maxChunks = max(1, (int) config('filament-accounting.banking.fints.sync.max_drain_chunks', 20));
+         $chunks = 0;
+         $outcome = null;
+diff --git a/src/Export/AccountingDatasetSchema.php b/src/Export/AccountingDatasetSchema.php
+index 8d22fae..585b127 100644
+--- a/src/Export/AccountingDatasetSchema.php
++++ b/src/Export/AccountingDatasetSchema.php
+@@ -87,7 +87,7 @@ final class AccountingDatasetSchema
+         'accounting_journal_entries' => 'id uuid legal_entity_id sequence period_id period_snapshot posted_on status source_type source_id description currency base_currency exchange_rate posting_rule_version_id reverses_id idempotency_key posted_by_type posted_by_id posted_at created_at updated_at',
+         'accounting_journal_lines' => 'id journal_entry_id ledger_account_id account_snapshot position debit_minor credit_minor currency base_debit_minor base_credit_minor description tax_code tax_rule_version_id created_at updated_at',
+         'accounting_open_items' => 'id uuid legal_entity_id document_id party_id kind currency original_minor due_on is_reversed created_at updated_at',
+-        'accounting_settlements' => 'id uuid legal_entity_id open_item_id journal_entry_id amount_minor currency is_reversed reverses_id created_at updated_at',
++        'accounting_settlements' => 'id uuid legal_entity_id open_item_id journal_entry_id amount_minor currency is_reversed reverses_id evidence created_at updated_at',
+         'accounting_attachments' => 'id uuid legal_entity_id attachable_type attachable_id original_filename mime_type size sha256 disk path source_type structured_payload meta uploaded_by_type uploaded_by_id created_at updated_at',
+         'accounting_invoice_artifact_sets' => 'id legal_entity_id document_id disk manifest snapshot meta evidence_sha256 pdf_base64 xml preserved_roles completed_at created_at updated_at',
+         'accounting_purchase_invoice_intakes' => 'id uuid legal_entity_id identity disk files preserved_files status last_error document_id created_by_type created_by_id preserved_at created_at updated_at',
+diff --git a/src/Services/FinalizeReconciliation.php b/src/Services/FinalizeReconciliation.php
+index 292e07e..1da9398 100644
+--- a/src/Services/FinalizeReconciliation.php
++++ b/src/Services/FinalizeReconciliation.php
+@@ -2,6 +2,7 @@
+ 
+ namespace FilamentAccounting\Services;
+ 
++use FilamentAccounting\Audit\SettlementEvidence;
+ use FilamentAccounting\Contracts\AccountingActorResolver;
+ use FilamentAccounting\Contracts\AccountingAuthorizer;
+ use FilamentAccounting\Contracts\LedgerEngine;
+@@ -38,6 +39,7 @@ final class FinalizeReconciliation
+         private readonly LegalEntityScope $scope,
+         private readonly AuditLogger $audit,
+         private readonly StoreReconciliationLearningRules $learningRules,
++        private readonly SettlementEvidence $settlementEvidence,
+     ) {}
+ 
+     /**
+@@ -170,6 +172,7 @@ final class FinalizeReconciliation
+                         throw new ReconciliationException(__('filament-accounting::errors.settlement_exceeds_remaining'));
+                     }
+ 
++                    $remainingBefore = $item->remainingMinor();
+                     $settlement = new Settlement;
+                     $settlement->fill([
+                         'legal_entity_id' => $line->legal_entity_id,
+@@ -178,6 +181,13 @@ final class FinalizeReconciliation
+                         'amount_minor' => $amount,
+                         'currency' => $line->currency,
+                         'is_reversed' => false,
++                        'evidence' => $this->settlementEvidence->capture(
++                            $item,
++                            $amount,
++                            (string) $line->currency,
++                            $line,
++                            $remainingBefore,
++                        ),
+                     ]);
+                     $settlement->save();
+                 }
+diff --git a/src/Services/RegisterPurchaseInvoice.php b/src/Services/RegisterPurchaseInvoice.php
+index ca77afd..92fcf9b 100644
+--- a/src/Services/RegisterPurchaseInvoice.php
++++ b/src/Services/RegisterPurchaseInvoice.php
+@@ -287,6 +287,13 @@ final class RegisterPurchaseInvoice
+             } catch (InvalidMoneyException $e) {
+                 throw new DocumentException(__('filament-accounting::errors.invalid_line_discount'), 0, $e);
+             }
++            // Converted e-invoice lines (with a source line index) must keep their
++            // source binding. Manual drafts and unindexed tax suggestions stay unbound.
++            $hasSourceIndex = array_key_exists('source_line_index', $input) && $input['source_line_index'] !== null;
++            if ($hasSourceIndex && ! filled($input['source_line_hash'] ?? null)) {
++                throw new DocumentException(__('filament-accounting::errors.purchase_line_source_evidence_required'));
++            }
++
+             $taxCodeValue = $input['tax_code'] ?? null;
+             $version = filled($taxCodeValue) ? $this->taxRules->handle($entity, $taxCodeValue, $date) : null;
+             if (! $version && ! array_key_exists('imported_tax_rate_bp', $input)) {
