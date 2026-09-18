@@ -18,4 +18,8 @@ return [
     'pin_kept' => 'Die gespeicherte PIN wurde beibehalten.',
     'tan_modes_discovered' => 'TAN-Verfahren aktualisiert.',
     'tan_modes_discovered_body' => ':count Verfahren sind verfügbar. Wählen Sie ein Verfahren (und ggf. ein Medium) und testen Sie dann die Verbindung.',
+    'catch_up_complete' => 'Catch-up für dieses Konto abgeschlossen.',
+    'catch_up_still_open' => 'Catch-up noch offen.',
+    'catch_up_still_open_body' => 'Gestoppt nach :chunks Chunk(s) (:stopped). Catch-up erneut fortsetzen oder SCA abschließen.',
+    'backlog_acknowledged' => 'Backlog-Eintrag zur Kenntnis genommen. Catch-up und Evidenzlücken bleiben bis zur Klärung offen.',
 ];

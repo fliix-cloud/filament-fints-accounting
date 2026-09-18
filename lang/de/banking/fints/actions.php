@@ -20,4 +20,6 @@ return [
     'save' => 'Speichern',
     'open_transactions' => 'Umsätze öffnen',
     'close' => 'Schließen',
+    'continue_catch_up' => 'Catch-up fortsetzen',
+    'acknowledge_backlog' => 'Zur Kenntnis nehmen',
 ];

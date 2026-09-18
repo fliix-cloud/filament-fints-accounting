@@ -20,4 +20,6 @@ return [
     'save' => 'Save',
     'open_transactions' => 'Open transactions',
     'close' => 'Close',
+    'continue_catch_up' => 'Continue catch-up',
+    'acknowledge_backlog' => 'Acknowledge',
 ];
