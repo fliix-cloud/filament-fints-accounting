@@ -11,7 +11,11 @@ does not make a system GoBD-compliant or certified.
   migrations, administration, backups, and audit storage.
 - Define every Gate in `authorization.abilities`, or provide an
   `AccountingAuthorizer`. Authentication and hidden navigation are not access
-  control.
+  control. Package mutation services (including FinTS sync, catch-up continue,
+  backlog acknowledgement, and reconciliation assign/split/finalize) call these
+  Gates; undefined abilities fail closed. Artisan commands remain a host OS
+  trust boundary — grant `sync_bank` / audit abilities to the identity that runs
+  scheduled sync and export, or restrict console access accordingly.
 - Keep attachments and audit anchors private and on storage with independently
   enforced versioning, retention, or immutability where required.
 - Back up the database, private files, artifact sets, audit anchors, keys,
@@ -76,7 +80,10 @@ storage administrator from rewriting both history and local hashes.
 ## Retention and recovery
 
 Do not cascade-delete issued documents, original attachments, posted journals,
-or audit evidence. Corrections use retained invoice versions and reversals.
+settlements (including frozen settlement evidence), or audit evidence. Corrections
+use retained invoice versions and reversals. Settlement rows store a versioned
+evidence snapshot of the open item, document, party, and statement line at
+finalization; reversals reference the original snapshot.
 Purchase drafts are discarded with actor/reason evidence; their originals and
 intake records remain available. No automatic disposal workflow is provided.
 
@@ -186,5 +193,6 @@ Schedule verification and storage-integrity checks, retain their reports, and
 alert on integrity failures and pending counts separately. Dataset exports can
 hold the legal-entity lock and require temporary disk space; measure runtime,
 lock duration, and storage latency on the reference host. Follow the schema and
-release policy in [Installation](install.md) and the current limitations in
-[GoBD readiness](gobd.md).
+release policy in [Installation](install.md) and the package close-out / host
+checklist in [GoBD readiness](gobd.md). Package technical GoBD gates are closed
+there; remaining work is host/operator evidence, not further package iteration.
