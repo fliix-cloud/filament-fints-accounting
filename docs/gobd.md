@@ -1,140 +1,95 @@
-# GoBD readiness
+# GoBD readiness — package close-out
 
-_Status: technical documentation of the pre-release package state reviewed in
-September 2026. This is not a legal opinion, certification, or production
-assessment._
+_Status: technical documentation of the package state as of September 2026.
+This is not a legal opinion, certification, or production assessment._
 
-## Verdict and claim boundary
+## Verdict / claim boundary
 
-The package is **not ready for an unqualified "GoBD-konform" claim**. It contains
-useful controls, but a defensible claim requires a tested release, a defined
-scope, and evidence that the host deployment and operating procedures meet the
-requirements. No supported persistent-installation baseline or production
-release approval is established.
+The package is **not ready for an unqualified "GoBD-konform" claim**. It ships
+technical bookkeeping and integrity controls, but a defensible claim still needs
+a tested release, a defined host scope, and operator evidence. No supported
+persistent-installation baseline or production release approval is established.
 
-The current public wording should remain:
+Keep public wording at:
 
 > Provides double-entry bookkeeping, audit-chain verification, and document-
 > integrity controls. GoBD readiness is under review.
 
-Even after technical release gates pass, do not equate GoBD readiness with
-complete VAT correctness, XRechnung conformity, DATEV compatibility, statutory
-financial statements, or a tax/legal approval. GoBD responsibility covers the
-actual taxpayer system, permissions, infrastructure, retention, procedures, and
-change documentation, not software alone.
+Even after package technical gates are done, do **not** equate GoBD readiness with
+complete VAT correctness, full EN 16931 / XRechnung conformity, DATEV
+compatibility, statutory financial statements, or tax/legal approval. GoBD
+responsibility covers the taxpayer system — permissions, infrastructure,
+retention, procedures, and change documentation — not software alone.
 
-## Controls currently present
+## Package technical gates
 
-The current implementation and documentation describe these controls:
+### DONE (stop iterating on package GoBD for these)
 
-- legal-entity scoping, explicit authorization Gates, immutable posted journals,
-  invoice versions, linked reversals, period controls, and idempotent posting;
-- exact money handling, explicit rejection of unsupported foreign-currency
-  conversion, versioned tax/posting rules, and retained payment evidence;
-- private intake of PDF/XML originals before parsing, intake manifests, hashes,
-  retry/recovery workflows, and retained outgoing PDF/XML artifact sets;
-- SHA-256 audit-chain verification, versioned journal snapshots, invoice-evidence
-  checks, external audit anchors, and scoped audit/dataset exports;
-- deterministic bank reconciliation and tracked bank-sync catch-up ranges; and
-- local XML/PDF validation and structured e-invoice generation through ZUGFeRD.
+| Gate | What shipped | Notes |
+| --- | --- | --- |
+| F3 least-privilege (package surface) | Public mutation services call `AccountingAuthorizer::authorize`; FinTS sync / backlog continue / ack require `sync_bank`; assign/split/finalize/reverse reconciliation gated; inventory test `MutationGateCoverageTest` | Hosts must still define Gates / `AccountingAuthorizer` and protect artisan |
+| Settlement evidence binding | Settlements store frozen open-item / document / party / statement-line evidence (`SettlementEvidence`, `accounting_settlements.evidence`) including reversals | Complements journal snapshots; does not replace host backups |
+| Converted purchase-line binding | Intake-backed lines already carry `source_line_hash`; registration now **fails closed** if a `source_line_index` is present without its hash | Manual drafts without import metadata remain unbound by design |
+| F12 banking completeness controls | Catch-up drain, pending→booked promotion, balance evidence on sync runs, backlog inventory / ack, concurrent+SCA fail-closed resume | Green sync ≠ completeness while catch-up remains |
+| F6 core EUR paths | Exact money, discounts, credit notes, foreign currency rejected | Remaining edge cases → tax/accounting review (host) |
+| F7 subset (not full conformity) | AllowanceCharge supported subset; DE EUR EN 16931 category/rate mapping fail-closed | Full schema / BR validation deferred (below) |
+| Audit chain / invoice evidence / anchors / dataset export | SHA-256 chain, journal snapshots, intake+artifact verification, external anchors, scoped dataset | Dataset ≠ host backup |
 
-These are technical controls and test evidence, not proof that every business
-case, deployment, or statutory obligation is covered.
+### DEFERRED (package) — with reason
 
-## Recent F7 progress (September 2026)
+| Item | Reason |
+| --- | --- |
+| **F7 schema / full EN 16931 business rules** | Separate from GoBD bookkeeping controls. Package supports a documented e-invoice **subset** (AllowanceCharge shapes that reconcile into line nets; DE EUR tax categories/rates including temporary COVID rates). Full XSD/Schematron and complete BR coverage would be a large e-invoice conformity track — do not boil the ocean inside GoBD close-out. Unsupported or mismatching input must remain preserved and visible, not booked. |
+| Exhaustive ORM/SQL/storage privilege proof | Package Gates cannot stop privileged DB/storage admins; residual is host | 
+| Complete master-data historical-change archive for every catalog/party edit | Connection-consistency controls exist; full change-evidence productization deferred | 
+| Foreign-currency bookkeeping | Explicitly unsupported | 
 
-Shipped on `main`, still **not** a claim that F7 is closed:
+## Host-only residuals (forever outside package)
 
-- **AllowanceCharge subset:** UBL/CII line- and document-level nodes are detected.
-  Line nets already reflected in line totals are imported with metadata; unknown
-  structures and non-reconciling amounts fail closed and keep intake evidence
-  (`UblEInvoiceParser`, `ZugferdEInvoiceAdapter`, related tests).
-- **DE EUR tax mapping:** EN 16931 / UNTDID 5305 category + rate map onto package
-  codes (`DE-19`, `DE-7`, `DE-0`, `DE-RC`, `DE-IG-ACQ`, `DE-EXPORT`), including
-  temporary COVID 16%/5% rates. Unknown rates and inconsistent pairs fail closed
-  (`MapImportedEInvoiceTax`). Foreign VAT remains rejected.
+These cannot be coded away in the package. Treat them as the operator checklist:
 
-Still open for F7: schema / full EN 16931 business-rule validation, and any
-allowance/charge shapes outside the supported subset.
+1. **Production evidence** — concurrency under real load, process interruption, DB/storage failure, immutable storage behavior, snapshot consistency, third-party import, full restore with real keys and external anchors on the first supported deployment.
+2. **Gate / role wiring** — define every ability in `authorization.abilities` (or custom `AccountingAuthorizer`); review company scope; protect console (`sync-bank`, `audit-anchor`, `audit-export`, verify). Authentication and hidden navigation are not access control.
+3. **Infrastructure & retention** — private disks, independent anchor credentials, versioning/object-lock attestation (`ACCOUNTING_AUDIT_ANCHOR_STORAGE_ATTESTED`), backups of DB + private files + artifacts + keys + config, restore drills.
+4. **Monitoring & procedures** — scheduled verify / storage-integrity, backlog alerts, SCA resume evidence, incident handling, retention/legal-hold/disposal, release identity (commit, lockfile, migrations).
+5. **Tax / legal / accounting review** — supported transaction matrix, jurisdiction assessment, any stronger German marketing wording.
+6. **Release baseline** — schema/upgrade matrix, migration policy for retained data, rollback limits, dependency state, recovery procedure before any production claim.
 
-## Open release and operating gaps
+See [Operations](operations.md) for commands and trust boundaries.
 
-The following remain material limits on an unqualified claim:
+## F7 supported-subset boundary (e-invoice, not GoBD close)
 
-1. **Production evidence:** concurrency, process interruption, database/storage
-   failure, immutable-storage behavior, production snapshot consistency,
-   third-party import, and full restore with real keys and external anchors must
-   be demonstrated on the first supported deployment.
-2. **Complete evidence model:** finalized settlement history, every relevant
-   converted purchase line, and other business relationships are not all bound
-   to independently preserved historical evidence. Dataset export has a fixed,
-   documented scope and is not a full host backup.
-3. **Authorization and mutation coverage:** all public mutation services,
-   integrations, bulk-write paths, and host wiring still require a complete
-   least-privilege audit. ORM guards do not protect privileged SQL or storage
-   access.
-4. **Accounting correctness:** F6 core paths (EUR-only, discounts, credit notes)
-   are largely in place; remaining tax, rounding, and edge cases still need
-   reviewed expected results. Foreign currency remains unsupported and must not
-   be inferred from balanced postings.
-5. **E-invoice conformity:** the AllowanceCharge subset and DE EUR tax mapping
-   above are progress only. Parsing/extraction and local checks are not complete
-   format or business-rule validation. Unsupported or mismatching input must
-   remain preserved and visible rather than being booked.
-6. **Master data and connection boundaries:** catalog transfer still needs
-   connection-consistency and historical-change evidence. The host must use the
-   documented single accounting connection unless a separately tested setup is
-   provided.
-7. **Bank completeness:** oldest-first catch-up chunking, gap reporting, and an
-   automatic multi-chunk drain loop (`drainCatchUp` / SyncCommand `--drain`) are
-   in place. Pending→booked (and pending/booked→storno) promotion updates the
-   existing statement line in place when end-to-end id or counterparty identity
-   matches uniquely; ambiguous or weak matches fail closed without merging.
-   Transaction sync now retains statement/balance reconciliation evidence on
-   each FinTS sync run (matched / mismatched / unavailable); mismatches fail
-   closed and unavailable evidence is surfaced so a green sync is not treated as
-   completeness proof. Operator backlog controls list open catch-up markers,
-   failed/attention/stuck sync runs, pending intakes, and statement lines needing
-   review (`BankingBacklogService`, `filament-accounting:banking-backlog`,
-   Filament sync-backlog resource/widget, continue/ack actions). Acknowledgement
-   records operator review without inventing completeness. Concurrent syncs on
-   the same account fail closed under a row lock while another run is `running`
-   or awaiting SCA; SCA completion of a transaction sync resumes catch-up via
-   `finalizeInterruptedSyncAndContinueCatchUp` / `drainCatchUp` and never claims
-   completeness while `catch_up_from` remains or a follow-up SCA/concurrent stop
-   recurs. Hosts should still retain operational evidence of SCA resumes and
-   competing sync attempts.
-8. **Release baseline:** a supported schema baseline, upgrade matrix, migration
-   policy for retained data, rollback limits, dependency state, and recovery
-   procedure must be published before a production release claim.
+**In scope for the package today:**
 
-## Required operator evidence
+- Detect UBL/CII line- and document-level AllowanceCharge; import shapes whose nets already reconcile into line totals; fail closed otherwise while keeping intake evidence.
+- Map EN 16931 / UNTDID 5305 category + rate onto `DE-19`, `DE-7`, `DE-0`, `DE-RC`, `DE-IG-ACQ`, `DE-EXPORT` (plus temporary 16%/5%); unknown/inconsistent pairs fail closed; foreign VAT rejected.
+- Local XML/PDF checks and ZUGFeRD generation helpers.
 
-A host seeking a scoped assessment must at least retain:
+**Out of scope / deferred:**
 
-- the deployed package commit, lock file, migrations, configuration, and change
-  procedure;
-- role/Gate definitions, access reviews, company scope checks, and server access
-  controls for console commands;
-- database, private-file, artifact, key, and external-anchor backup/restore
-  tests;
-- scheduled verification, pending-work and sync-gap alerts, incident handling,
-  retention/legal-hold/disposal procedures, and release test results; and
-- accounting/tax review of supported transaction cases and an assessment of the
-  applicable jurisdiction and business process.
-
-See [Operations](operations.md) for the concrete commands and trust boundaries.
+- Full EN 16931 Schematron / complete business-rule engines.
+- Allowance/charge shapes outside the supported subset.
+- Claiming XRechnung or ZUGFeRD certification.
 
 ## Conditions for future wording
 
-Only after the release gates and operating evidence above pass should the project
-consider wording such as:
+Only after host evidence above exists should the project consider:
 
 > Version X provides the technical requirements for GoBD-compliant processing
 > within the documented scope when deployed and operated according to the
 > specified requirements.
 
-Any stronger German marketing wording needs accounting and legal review. This
-document should be updated with the exact version, scope, evidence set, and
-remaining limitations rather than converting historical test results into a
-blanket compliance statement.
+Any stronger claim needs accounting and legal review. Update this document with
+exact version, scope, evidence set, and remaining host limits — do not convert
+historical tests into a blanket compliance statement.
+
+## What Marc can treat as forgotten vs checklist
+
+**Forgotten (stop package GoBD iteration):** F3 package Gate coverage audit +
+code fixes, settlement/purchase-line evidence binding holes that were
+code-fixable, F12 banking package controls, F7 subset documentation and
+explicit deferral of full EN 16931.
+
+**Keep on host checklist:** production restore drills, Gate/role definitions,
+anchor storage attestation, monitoring, tax/legal review, release baseline,
+and any future e-invoice conformity project (separate from GoBD bookkeeping).
