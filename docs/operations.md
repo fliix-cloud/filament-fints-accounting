@@ -156,11 +156,18 @@ exit does not mean the whole requested range is covered. Review sync runs where
 
 ```bash
 php artisan filament-accounting:sync-bank --transactions --from=2025-01-01
+php artisan filament-accounting:banking-backlog --json
 ```
 
-SCA remains a user action. Pending/booked transitions, bank statement/balance
-reconciliation, concurrent catch-up, and backlog response still need operational
-evidence before making a completeness claim.
+`banking-backlog` fails closed (non-zero exit) while catch-up markers, open sync
+runs, pending intakes, or review-flagged statement lines remain. Use
+`--continue` to drain catch-up and `--ack-run=` only to record that a failed or
+evidence-gap run was reviewed — acknowledgement does not clear catch-up or
+invent completeness. The Filament sync-backlog view and dashboard widget expose
+the same inventory with continue/ack actions.
+
+SCA remains a user action. Concurrent catch-up interruption behavior still needs
+operational evidence before making a completeness claim.
 
 ## Release checks and alerting
 
