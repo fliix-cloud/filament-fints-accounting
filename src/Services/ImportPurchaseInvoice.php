@@ -179,6 +179,7 @@ final class ImportPurchaseInvoice
                 'tax_minor' => $parsed->taxMinor,
                 'gross_minor' => $parsed->grossMinor,
             ] : null,
+            'document_allowance_charges' => $parsed?->meta['document_allowance_charges'] ?? [],
         ];
         // Business writes share one transaction; retained intake bytes are independent.
         $document = $this->invoices->createDraft($entity, [
@@ -239,7 +240,7 @@ final class ImportPurchaseInvoice
         }
         if ($extension === 'pdf') {
             if (! str_starts_with($contents, '%PDF-')) {
-                throw new DocumentException(__('filament-accounting::errors.invalid_pdf'));
+                throw new DocumentException(__('filament-accounting::errors.purchase_invoice_pdf_required') === '' ? '' : __('filament-accounting::errors.invalid_pdf'));
             }
             try {
                 $embedded = ZugferdDocumentPdfReaderExt::getInvoiceDocumentContentFromContent($contents);
