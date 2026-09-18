@@ -2,6 +2,7 @@
 
 namespace FilamentAccounting\Services;
 
+use FilamentAccounting\Audit\SettlementEvidence;
 use FilamentAccounting\Contracts\AccountingActorResolver;
 use FilamentAccounting\Contracts\AccountingAuthorizer;
 use FilamentAccounting\Contracts\LedgerEngine;
@@ -22,6 +23,7 @@ final class ReverseReconciliation
         private readonly AccountingActorResolver $actors,
         private readonly LegalEntityScope $scope,
         private readonly AuditLogger $audit,
+        private readonly SettlementEvidence $settlementEvidence,
     ) {}
 
     public function handle(Reconciliation $reconciliation, string $postedOn, string $reason): Reconciliation
@@ -64,15 +66,17 @@ final class ReverseReconciliation
                 ->get();
 
             foreach ($settlements as $settlement) {
+                $reversalAmount = -1 * (int) $settlement->amount_minor;
                 $reversing = new Settlement;
                 $reversing->fill([
                     'legal_entity_id' => $settlement->legal_entity_id,
                     'open_item_id' => $settlement->open_item_id,
                     'journal_entry_id' => $reversalEntry->getKey(),
-                    'amount_minor' => -1 * (int) $settlement->amount_minor,
+                    'amount_minor' => $reversalAmount,
                     'currency' => $settlement->currency,
                     'is_reversed' => true,
                     'reverses_id' => $settlement->getKey(),
+                    'evidence' => $this->settlementEvidence->forReversal($settlement, $reversalAmount),
                 ]);
                 $reversing->save();
 
