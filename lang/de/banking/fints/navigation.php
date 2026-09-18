@@ -10,4 +10,5 @@ return [
     'direct_debit_mandates' => 'Mandate',
     'direct_debits' => 'Lastschriften',
     'settings' => 'Bankverbindungen',
+    'sync_backlog' => 'Sync-Backlog',
 ];

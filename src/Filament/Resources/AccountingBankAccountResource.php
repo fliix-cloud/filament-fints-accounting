@@ -104,12 +104,27 @@ class AccountingBankAccountResource extends Resource
                     ->formatStateUsing(fn (mixed $state, AccountingBankAccount $record): ?string => (int) $record->pendingStatementLinesSummary()['count'] > 0
                         ? $record->formattedBalance((int) $state)
                         : null),
+                TextColumn::make('catch_up_from')
+                    ->label(__('filament-accounting::banking/fints/fields.catch_up_from'))
+                    ->date()
+                    ->placeholder('—')
+                    ->color(fn ($state): string => $state ? 'warning' : 'gray'),
                 TextColumn::make('available_amount_minor')
                     ->label(__('filament-accounting::fields.available_amount'))
                     ->placeholder('—')
                     ->formatStateUsing(fn (?int $state, AccountingBankAccount $record): ?string => $record->formattedBalance($state)),
             ])
             ->recordActions([
+                Action::make('continueCatchUp')
+                    ->label(__('filament-accounting::banking/fints/actions.continue_catch_up'))
+                    ->icon('heroicon-o-play')
+                    ->color('warning')
+                    ->visible(fn (AccountingBankAccount $record): bool => $record->bank_connection_id !== null && $record->catch_up_from !== null)
+                    ->disabled(fn (AccountingBankAccount $record): bool => ! ProductRegistration::isConfigured() || ! $record->isUsable())
+                    ->tooltip(fn (): string => ProductRegistration::isConfigured()
+                        ? __('filament-accounting::banking/fints/fields.backlog_catch_up_help')
+                        : __('filament-accounting::banking/fints/notifications.product_id_missing'))
+                    ->action(fn (AccountingBankAccount $record, ListAccountingBankAccounts $livewire) => $livewire->continueCatchUpDrain($record)),
                 Action::make('syncTransactions')
                     ->label(__('filament-accounting::banking/fints/actions.sync_transactions'))
                     ->icon('heroicon-o-arrow-path')

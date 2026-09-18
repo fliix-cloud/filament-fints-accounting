@@ -32,9 +32,11 @@ class BankingResourceUiTest extends TestCase
 
         $this->assertSame('Bankkonto', AccountingBankAccountResource::getModelLabel());
         $this->assertSame('Bankkonten', AccountingBankAccountResource::getPluralModelLabel());
-        $this->assertSame(['syncTransactions', 'syncBalance'], $actions->keys()->all());
+        $this->assertSame(['continueCatchUp', 'syncTransactions', 'syncBalance'], $actions->keys()->all());
+        $this->assertSame('Catch-up fortsetzen', $actions->get('continueCatchUp')?->getLabel());
         $this->assertSame('Umsätze abrufen', $actions->get('syncTransactions')?->getLabel());
         $this->assertSame('Saldo abrufen', $actions->get('syncBalance')?->getLabel());
+        $this->assertSame('Catch-up ab', $table->getColumn('catch_up_from')?->getLabel());
     }
 
     #[Test]

@@ -18,4 +18,8 @@ return [
     'pin_kept' => 'The stored PIN was kept.',
     'tan_modes_discovered' => 'TAN methods updated.',
     'tan_modes_discovered_body' => ':count methods are available. Select a method (and a medium if required), then test the connection.',
+    'catch_up_complete' => 'Catch-up completed for this account.',
+    'catch_up_still_open' => 'Catch-up still open.',
+    'catch_up_still_open_body' => 'Stopped after :chunks chunk(s) (:stopped). Re-run continue catch-up or resolve SCA.',
+    'backlog_acknowledged' => 'Backlog item acknowledged. Catch-up and evidence gaps remain until resolved.',
 ];

@@ -127,7 +127,7 @@ class AccountingNavigationTest extends TestCase
             collect($groups->get('top')?->getItems())->map(fn ($item): string => $item->getLabel())->take(-2)->values()->all(),
         );
         $this->assertSame(
-            ['Umsätze', 'Überweisungen', 'Lastschriften'],
+            ['Sync-Backlog', 'Umsätze', 'Überweisungen', 'Lastschriften'],
             collect($groups->get('Bank & Zuordnung')?->getItems())->map(fn ($item): string => $item->getLabel())->values()->all(),
         );
         $this->assertSame(

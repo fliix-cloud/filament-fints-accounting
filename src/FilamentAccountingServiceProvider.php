@@ -3,6 +3,7 @@
 namespace FilamentAccounting;
 
 use FilamentAccounting\Audit\FilesystemAuditAnchorStore;
+use FilamentAccounting\Banking\FinTs\Commands\BacklogCommand;
 use FilamentAccounting\Banking\FinTs\Commands\CleanupScaCommand;
 use FilamentAccounting\Banking\FinTs\Commands\SyncCommand;
 use FilamentAccounting\Banking\FinTs\Commands\SyncInstitutesCommand;
@@ -50,6 +51,7 @@ class FilamentAccountingServiceProvider extends PackageServiceProvider
             ->name('filament-accounting')
             ->hasCommands([
                 CreateAuditAnchorCommand::class,
+                BacklogCommand::class,
                 CleanupScaCommand::class,
                 ExportAuditEvidenceCommand::class,
                 InstallCommand::class,
