@@ -89,7 +89,7 @@ final class JournalIntegrityVerifier
         // Walk evidence in the reverse direction as well: deleted/moved/downgraded
         // journals must not disappear from verification merely by leaving the posted query.
         foreach ($events as $event) {
-            $entry = $entries->get($event->target_id);
+            $entry = $entries->get(is_numeric($event->target_id) ? (int) $event->target_id : $event->target_id);
             if ($event->target_type !== $targetType || ! $entry instanceof JournalEntry) {
                 $issues[] = $this->issue('journal_target_missing', 'Journal evidence no longer resolves to a journal in this entity.', null, $event);
 

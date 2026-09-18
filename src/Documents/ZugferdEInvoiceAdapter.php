@@ -139,7 +139,7 @@ final class ZugferdEInvoiceAdapter implements EInvoiceAdapter
             $reader->getDocumentPositionLineSummationExt(
                 $lineTotal, $chargeTotal, $allowanceTotal, $lineTax, $lineGrand, $allowanceCharge,
             );
-            $lines[] = [
+            $lineEntry = [
                 'position' => $lineId,
                 'description' => $name ?: $description,
                 'quantity' => $quantity !== null ? (string) $quantity : '1',
@@ -151,7 +151,73 @@ final class ZugferdEInvoiceAdapter implements EInvoiceAdapter
                 'net_minor' => $this->toMinor($lineTotal ?? $netLine, $currency),
                 'tax_minor' => $this->toMinor($lineTax ?? $calculatedTax, $currency),
             ];
+            $lineAllowanceMinor = $this->toMinor($allowanceTotal, $currency);
+            $lineChargeMinor = $this->toMinor($chargeTotal, $currency);
+            if ($lineAllowanceMinor !== 0 || $lineChargeMinor !== 0) {
+                $lineEntry['allowance_charges'] = array_values(array_filter([
+                    $lineAllowanceMinor !== 0 ? [
+                        'charge_indicator' => false,
+                        'amount_minor' => $lineAllowanceMinor,
+                        'reason' => null,
+                        'reason_code' => null,
+                        'percent' => null,
+                    ] : null,
+                    $lineChargeMinor !== 0 ? [
+                        'charge_indicator' => true,
+                        'amount_minor' => $lineChargeMinor,
+                        'reason' => null,
+                        'reason_code' => null,
+                        'percent' => null,
+                    ] : null,
+                ]));
+            }
+            $lines[] = $lineEntry;
         } while ($reader->nextDocumentPosition());
+
+        $documentAllowanceMinor = $this->toMinor($allowance, $currency);
+        $documentChargeMinor = $this->toMinor($charge, $currency);
+        $documentAllowanceCharges = [];
+        if ($documentAllowanceMinor !== 0) {
+            $documentAllowanceCharges[] = [
+                'charge_indicator' => false,
+                'amount_minor' => $documentAllowanceMinor,
+                'reason' => null,
+                'reason_code' => null,
+                'percent' => null,
+            ];
+        }
+        if ($documentChargeMinor !== 0) {
+            $documentAllowanceCharges[] = [
+                'charge_indicator' => true,
+                'amount_minor' => $documentChargeMinor,
+                'reason' => null,
+                'reason_code' => null,
+                'percent' => null,
+            ];
+        }
+        if ($documentAllowanceCharges !== []) {
+            $sumLineNets = array_sum(array_map(
+                static fn (array $line): int => (int) $line['net_minor'],
+                $lines,
+            ));
+            // Non-zero document-level allowance/charge that moves the invoice net
+            // away from the sum of line nets cannot be mapped to posting lines yet.
+            if ($net !== $sumLineNets) {
+                throw new DocumentException(__('filament-accounting::errors.unsupported_allowance_charge', [
+                    'detail' => 'document-level AllowanceCharge changes net below sum of line nets and cannot be posted',
+                ]));
+            }
+        }
+
+        $meta = [
+            'filename' => $filename,
+            'type_code' => $documentTypeCode,
+            'seller_city' => $sellerCity,
+            'seller_country' => $sellerCountry,
+        ];
+        if ($documentAllowanceCharges !== []) {
+            $meta['document_allowance_charges'] = $documentAllowanceCharges;
+        }
 
         return new EInvoiceParseResult(
             formatKey: $this->formatKey(),
@@ -168,12 +234,7 @@ final class ZugferdEInvoiceAdapter implements EInvoiceAdapter
             sha256: $hash,
             valid: true,
             errors: [],
-            meta: [
-                'filename' => $filename,
-                'type_code' => $documentTypeCode,
-                'seller_city' => $sellerCity,
-                'seller_country' => $sellerCountry,
-            ],
+            meta: $meta,
             sellerAddressLine1: $lineOne,
             sellerAddressLine2: implode(' ', array_filter([$lineTwo, $lineThree])),
             sellerPostalCode: $sellerPostcode,
