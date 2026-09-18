@@ -90,8 +90,11 @@ The following remain material limits on an unqualified claim:
    in place. Pending→booked (and pending/booked→storno) promotion updates the
    existing statement line in place when end-to-end id or counterparty identity
    matches uniquely; ambiguous or weak matches fail closed without merging.
-   Concurrent/SCA interruption behavior, statement/balance reconciliation, and
-   backlog controls still need implementation or operational evidence.
+   Transaction sync now retains statement/balance reconciliation evidence on
+   each FinTS sync run (matched / mismatched / unavailable); mismatches fail
+   closed and unavailable evidence is surfaced so a green sync is not treated as
+   completeness proof. Concurrent/SCA interruption behavior and backlog controls
+   still need implementation or operational evidence.
 8. **Release baseline:** a supported schema baseline, upgrade matrix, migration
    policy for retained data, rollback limits, dependency state, and recovery
    procedure must be published before a production release claim.

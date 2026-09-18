@@ -7,6 +7,7 @@ use Fhp\Model\StatementOfAccount\Transaction;
 use FilamentAccounting\Banking\Data\BankStatementLineData;
 use FilamentAccounting\Banking\FinTs\Contracts\FintsClientFactory;
 use FilamentAccounting\Banking\FinTs\Data\ScaOutcome;
+use FilamentAccounting\Banking\FinTs\Data\StatementBalanceEvidence;
 use FilamentAccounting\Banking\FinTs\Enums\ScaOperationType;
 use FilamentAccounting\Banking\FinTs\Enums\SyncStatus;
 use FilamentAccounting\Banking\FinTs\Enums\SyncType;
@@ -30,6 +31,7 @@ class TransactionSyncService
         private readonly StrongAuthenticationCoordinator $sca,
         private readonly UnifiedBankTransactionImporter $importer,
         private readonly StatementActionFactory $statementActions,
+        private readonly StatementBalanceReconciler $balanceReconciler,
     ) {}
 
     public function sync(
@@ -46,7 +48,6 @@ class TransactionSyncService
         }
         $to ??= Carbon::today();
 
-        // When a catch-up is in progress, resume from the oldest uncovered date.
         if ($from === null && $account->catch_up_from instanceof \DateTimeInterface) {
             $from = Carbon::parse($account->catch_up_from);
         } elseif ($from === null) {
@@ -54,9 +55,6 @@ class TransactionSyncService
                 ? Carbon::parse($account->last_transaction_sync_at)->subDays((int) config('filament-accounting.banking.fints.sync.incremental_overlap_days', 3))
                 : Carbon::today()->subDays((int) config('filament-accounting.banking.fints.sync.initial_lookback_days', 90));
         }
-        // Chunk the requested range oldest-first; nextFrom records the still
-        // uncovered frontier (null once the range fits) and drives the marker
-        // forward only after this chunk succeeds (in markSyncCompleted).
         [$from, $to, $nextFrom] = $this->boundedRange(Carbon::parse($from), Carbon::parse($to));
 
         $run = BankSyncRun::query()->create([
@@ -93,8 +91,15 @@ class TransactionSyncService
             return $outcome;
         }
 
-        $result = $this->importStatementDetailed($account, $this->statementActions->result($action));
-        $this->markSyncCompleted($account, $run, $result);
+        $statement = $this->statementActions->result($action);
+        $result = $this->importStatementDetailed($account, $statement);
+        $evidence = $this->balanceReconciler->forStatement(
+            $account,
+            $statement,
+            $run->from_date,
+            $run->to_date,
+        );
+        $this->markSyncCompleted($account, $run, $result, $evidence);
 
         return $outcome;
     }
@@ -131,22 +136,40 @@ class TransactionSyncService
         ];
     }
 
-    /** @param array{imported: int, updated: int} $result */
-    public function markSyncCompleted(AccountingBankAccount $account, BankSyncRun $run, array $result): void
-    {
+    /**
+     * @param  array{imported: int, updated: int}  $result
+     */
+    public function markSyncCompleted(
+        AccountingBankAccount $account,
+        BankSyncRun $run,
+        array $result,
+        ?StatementBalanceEvidence $evidence = null,
+    ): void {
         $connection = $account->connection;
         if (! $connection instanceof BankConnection) {
             throw new UnsupportedCapabilityException(__('filament-accounting::banking/fints/errors.account_not_usable'));
         }
-        $run->status = SyncStatus::Completed;
+
+        if ($evidence instanceof StatementBalanceEvidence) {
+            $run->reconciliation_evidence = $evidence->toArray();
+            $run->status = $evidence->isMismatched()
+                ? SyncStatus::RequiresAttention
+                : SyncStatus::Completed;
+            if ($evidence->isMismatched()) {
+                $run->error_code = 'statement_balance_mismatch';
+                $run->error_message = 'Imported transactions do not align with statement/balance evidence.';
+            } elseif ($evidence->isUnavailable()) {
+                $run->error_code = 'statement_balance_evidence_unavailable';
+                $run->error_message = 'Sync finished without bindable statement/balance completeness evidence.';
+            }
+        } else {
+            $run->status = SyncStatus::Completed;
+        }
+
         $run->item_count = $result['imported'] + $result['updated'];
         $run->finished_at = now();
         $run->save();
 
-        // Advance the catch-up marker past this chunk. On the final chunk
-        // requested_from_date is null and the marker clears: the account is
-        // fully covered. Only a successful chunk advances the frontier, so a
-        // crash mid-catch-up resumes from the last completed chunk.
         if ($run->requested_from_date instanceof Carbon) {
             $account->catch_up_from = Carbon::parse($run->requested_from_date);
             $account->last_transaction_sync_at = $run->to_date ?? now();
@@ -170,11 +193,6 @@ class TransactionSyncService
     }
 
     /**
-     * Repeatedly sync one account until the catch-up marker is cleared, SCA
-     * interrupts, or the configured chunk budget is reached. Each successful
-     * chunk advances {@see AccountingBankAccount::$catch_up_from}; callers must
-     * not assume completeness when the marker remains or SCA is required.
-     *
      * @return array{outcome: ScaOutcome, chunks: int, complete: bool, stopped_for: string}
      */
     public function drainCatchUp(
@@ -212,11 +230,7 @@ class TransactionSyncService
     }
 
     /**
-     * Compute the next catch-up chunk from the oldest uncovered date forward.
-     * Chunks tile the range oldest-first so repeated syncs drain a long gap
-     * without holes. `nextFrom` is null once the whole range fits in one chunk.
-     *
-     * @return array{Carbon, Carbon, ?Carbon} chunk from, chunk to, next uncovered from (or null).
+     * @return array{Carbon, Carbon, ?Carbon}
      */
     public function boundedRange(Carbon $from, Carbon $to): array
     {

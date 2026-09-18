@@ -26,6 +26,7 @@ use Illuminate\Support\Str;
  * @property int $item_count
  * @property string|null $error_code
  * @property string|null $error_message
+ * @property array<string, mixed>|null $reconciliation_evidence
  * @property Carbon|null $started_at
  * @property Carbon|null $finished_at
  */
@@ -58,6 +59,7 @@ class BankSyncRun extends Model
             'requested_from_date' => 'date',
             'started_at' => 'datetime',
             'finished_at' => 'datetime',
+            'reconciliation_evidence' => 'array',
         ];
     }
 
