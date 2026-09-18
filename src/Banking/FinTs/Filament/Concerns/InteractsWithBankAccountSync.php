@@ -23,6 +23,44 @@ trait InteractsWithBankAccountSync
     #[Locked]
     public ?string $combinedBankSyncStage = null;
 
+
+    public function continueCatchUpDrain(AccountingBankAccount $account): void
+    {
+        $result = app(TransactionSyncService::class)->drainCatchUp(
+            $account,
+            app(AccountingActorResolver::class)->resolve(),
+            request()->fullUrl(),
+        );
+
+        if (($result['stopped_for'] ?? null) === 'sca') {
+            Notification::make()
+                ->title(__('filament-accounting::banking/fints/notifications.sca_required'))
+                ->warning()
+                ->send();
+            $this->refreshBankSyncUi();
+
+            return;
+        }
+
+        if ($result['complete'] ?? false) {
+            Notification::make()
+                ->title(__('filament-accounting::banking/fints/notifications.catch_up_complete'))
+                ->success()
+                ->send();
+        } else {
+            Notification::make()
+                ->title(__('filament-accounting::banking/fints/notifications.catch_up_still_open'))
+                ->body(__('filament-accounting::banking/fints/notifications.catch_up_still_open_body', [
+                    'chunks' => (int) ($result['chunks'] ?? 0),
+                    'stopped' => (string) ($result['stopped_for'] ?? 'unknown'),
+                ]))
+                ->warning()
+                ->send();
+        }
+
+        $this->refreshBankSyncUi();
+    }
+
     public function syncBankAccountBalance(AccountingBankAccount $account): void
     {
         $outcome = $this->runBalanceSync($account);
