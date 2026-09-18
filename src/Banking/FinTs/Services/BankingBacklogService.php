@@ -4,6 +4,7 @@ namespace FilamentAccounting\Banking\FinTs\Services;
 
 use FilamentAccounting\Banking\FinTs\Enums\SyncStatus;
 use FilamentAccounting\Banking\FinTs\Models\BankSyncRun;
+use FilamentAccounting\Contracts\AccountingAuthorizer;
 use FilamentAccounting\Models\AccountingBankAccount;
 use FilamentAccounting\Models\BankStatementLine;
 use FilamentAccounting\Models\PurchaseInvoiceIntake;
@@ -23,6 +24,10 @@ class BankingBacklogService
     public const ACK_EVIDENCE_KEY = 'operator_acknowledged_at';
 
     public const STUCK_RUNNING_HOURS = 2;
+
+    public function __construct(
+        private readonly AccountingAuthorizer $authorizer,
+    ) {}
 
     /**
      * @return array{
@@ -140,6 +145,7 @@ class BankingBacklogService
      */
     public function acknowledgeSyncRun(BankSyncRun $run, ?string $note = null): BankSyncRun
     {
+        $this->authorizer->authorize('sync_bank', $run->account ?? $run);
         if (! in_array($run->status, [SyncStatus::Failed, SyncStatus::RequiresAttention, SyncStatus::Completed], true)) {
             throw new \InvalidArgumentException('Only failed, attention, or completed (evidence gap) runs can be acknowledged.');
         }
@@ -187,6 +193,7 @@ class BankingBacklogService
      */
     public function continueCatchUp(?int $legalEntityId = null): array
     {
+        $this->authorizer->authorize('sync_bank');
         $transactions = app(TransactionSyncService::class);
         $results = [];
 

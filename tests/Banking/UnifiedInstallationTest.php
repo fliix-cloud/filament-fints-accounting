@@ -60,6 +60,7 @@ class UnifiedInstallationTest extends TestCase
             '2026_09_11_000001_add_requested_from_date_to_fints_sync_runs.php',
             '2026_09_12_000001_add_catch_up_from_to_accounting_bank_accounts.php',
             '2026_09_18_000001_add_reconciliation_evidence_to_fints_sync_runs.php',
+            '2026_09_18_000002_add_evidence_to_accounting_settlements.php',
         ], array_map('basename', $paths));
 
         foreach ($paths as $path) {
@@ -81,15 +82,15 @@ class UnifiedInstallationTest extends TestCase
             $constraintName = null;
 
             foreach (file($path, FILE_IGNORE_NEW_LINES) ?: [] as $line) {
-                if (preg_match("/Schema::create\\('([^']+)'/", $line, $tableMatch) === 1) {
+                if (preg_match("/Schema::create\('([^']+)'/", $line, $tableMatch) === 1) {
                     $tableName = $tableMatch[1];
                 }
 
-                if ($tableName !== null && preg_match("/foreignId\\('([^']+)'\\)/", $line, $columnMatch) === 1) {
+                if ($tableName !== null && preg_match("/foreignId\('([^']+)'\)/", $line, $columnMatch) === 1) {
                     $constraintName = $tableName.'_'.$columnMatch[1].'_foreign';
                 }
 
-                if ($constraintName !== null && preg_match("/indexName:\\s*'([^']+)'/", $line, $nameMatch) === 1) {
+                if ($constraintName !== null && preg_match("/indexName:\s*'([^']+)'/", $line, $nameMatch) === 1) {
                     $constraintName = $nameMatch[1];
                 }
 

@@ -19,6 +19,7 @@ use FilamentAccounting\Banking\FinTs\Models\BankConnection;
 use FilamentAccounting\Banking\FinTs\Models\BankSyncRun;
 use FilamentAccounting\Banking\FinTs\Support\TransactionFingerprint;
 use FilamentAccounting\Banking\Services\UnifiedBankTransactionImporter;
+use FilamentAccounting\Contracts\AccountingAuthorizer;
 use FilamentAccounting\Models\AccountingBankAccount;
 use FilamentAccounting\Models\BankStatementLine;
 use FilamentAccounting\Support\ExactMoney;
@@ -34,6 +35,7 @@ class TransactionSyncService
         private readonly UnifiedBankTransactionImporter $importer,
         private readonly StatementActionFactory $statementActions,
         private readonly StatementBalanceReconciler $balanceReconciler,
+        private readonly AccountingAuthorizer $authorizer,
     ) {}
 
     public function sync(
@@ -43,6 +45,7 @@ class TransactionSyncService
         ?Model $actor = null,
         ?string $returnUrl = null,
     ): ScaOutcome {
+        $this->authorizer->authorize('sync_bank', $account);
         $this->assertUsable($account);
         $connection = $account->connection;
         if (! $connection instanceof BankConnection) {
@@ -236,6 +239,7 @@ class TransactionSyncService
         ?Model $actor = null,
         ?string $returnUrl = null,
     ): array {
+        // Authorization is enforced on each sync() chunk (and Filament entry points).
         $maxChunks = max(1, (int) config('filament-accounting.banking.fints.sync.max_drain_chunks', 20));
         $chunks = 0;
         $outcome = null;

@@ -17,6 +17,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
  * @property string $currency
  * @property bool $is_reversed
  * @property int|null $reverses_id
+ * @property array<string, mixed>|null $evidence
  * @property-read Reconciliation|null $reconciliation
  */
 class Settlement extends AccountingModel
@@ -34,6 +35,7 @@ class Settlement extends AccountingModel
         'currency',
         'is_reversed',
         'reverses_id',
+        'evidence',
     ];
 
     protected function casts(): array
@@ -41,6 +43,7 @@ class Settlement extends AccountingModel
         return [
             'amount_minor' => 'integer',
             'is_reversed' => 'boolean',
+            'evidence' => 'array',
         ];
     }
 

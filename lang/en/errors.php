@@ -91,4 +91,5 @@ return [
     'unmapped_e_invoice_tax' => 'The e-invoice tax category/rate (:category, :rate) cannot be mapped safely to a German tax code. Import blocked.',
     'unsupported_allowance_charge' => 'This e-invoice contains an allowance or charge that cannot be imported safely (:detail). The original remains preserved for review.',
     'allowance_charge_totals_mismatch' => 'Allowance/charge amounts do not reconcile with the invoice monetary totals (:detail). The original remains preserved for review.',
+    'purchase_line_source_evidence_required' => 'Converted purchase lines require a source_line_hash bound to the preserved original.',
 ];

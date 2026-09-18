@@ -50,7 +50,7 @@ abstract class TestCase extends Orchestra
     {
         // Explicit full-access fixture permissions; authorization tests override this setup.
         foreach (config('filament-accounting.authorization.abilities') as $ability) {
-            Gate::define($ability, fn (User $user): bool => true);
+            Gate::define($ability, fn ($user = null): bool => true);
         }
     }
 

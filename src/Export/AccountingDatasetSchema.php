@@ -87,7 +87,7 @@ final class AccountingDatasetSchema
         'accounting_journal_entries' => 'id uuid legal_entity_id sequence period_id period_snapshot posted_on status source_type source_id description currency base_currency exchange_rate posting_rule_version_id reverses_id idempotency_key posted_by_type posted_by_id posted_at created_at updated_at',
         'accounting_journal_lines' => 'id journal_entry_id ledger_account_id account_snapshot position debit_minor credit_minor currency base_debit_minor base_credit_minor description tax_code tax_rule_version_id created_at updated_at',
         'accounting_open_items' => 'id uuid legal_entity_id document_id party_id kind currency original_minor due_on is_reversed created_at updated_at',
-        'accounting_settlements' => 'id uuid legal_entity_id open_item_id journal_entry_id amount_minor currency is_reversed reverses_id created_at updated_at',
+        'accounting_settlements' => 'id uuid legal_entity_id open_item_id journal_entry_id amount_minor currency is_reversed reverses_id evidence created_at updated_at',
         'accounting_attachments' => 'id uuid legal_entity_id attachable_type attachable_id original_filename mime_type size sha256 disk path source_type structured_payload meta uploaded_by_type uploaded_by_id created_at updated_at',
         'accounting_invoice_artifact_sets' => 'id legal_entity_id document_id disk manifest snapshot meta evidence_sha256 pdf_base64 xml preserved_roles completed_at created_at updated_at',
         'accounting_purchase_invoice_intakes' => 'id uuid legal_entity_id identity disk files preserved_files status last_error document_id created_by_type created_by_id preserved_at created_at updated_at',
