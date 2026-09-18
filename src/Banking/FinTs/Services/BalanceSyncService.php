@@ -22,6 +22,7 @@ class BalanceSyncService
     public function __construct(
         private readonly FintsClientFactory $factory,
         private readonly StrongAuthenticationCoordinator $sca,
+        private readonly StatementBalanceReconciler $balanceReconciler,
     ) {}
 
     public function sync(BankAccount $account, ?Model $actor = null, ?string $returnUrl = null): ScaOutcome
@@ -53,9 +54,16 @@ class BalanceSyncService
 
         $this->applyResults($account, $action);
 
+        $account->refresh();
+        $evidence = $this->balanceReconciler->forBalanceSnapshot($account);
+        $run->reconciliation_evidence = $evidence->toArray();
         $run->status = SyncStatus::Completed;
         $run->item_count = 1;
         $run->finished_at = now();
+        if ($evidence->isUnavailable()) {
+            $run->error_code = 'statement_balance_evidence_unavailable';
+            $run->error_message = 'Balance sync finished without a retained booked-balance snapshot.';
+        }
         $run->save();
         event(new BankBalancesSynced($connection->id, $account->id));
 
