@@ -89,4 +89,5 @@ return [
     'unmapped_e_invoice_tax' => 'Steuerkategorie/-satz der E-Rechnung (:category, :rate) lässt sich nicht sicher auf einen DE-Steuerschlüssel abbilden. Import blockiert.',
     'unsupported_allowance_charge' => 'Diese E-Rechnung enthält Zu- oder Abschläge, die nicht sicher importiert werden können (:detail). Das Original bleibt zur Prüfung erhalten.',
     'allowance_charge_totals_mismatch' => 'Zu-/Abschläge stimmen nicht mit den Rechnungsgesamtsummen überein (:detail). Das Original bleibt zur Prüfung erhalten.',
+    'purchase_line_source_evidence_required' => 'Übernommene Einkaufszeilen benötigen einen source_line_hash mit Bindung an das Original.',
 ];
