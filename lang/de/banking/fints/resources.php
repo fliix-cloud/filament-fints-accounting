@@ -8,4 +8,5 @@ return [
     'direct_debit_creditor' => ['singular' => 'Gläubigerprofil', 'plural' => 'Gläubigerprofile'],
     'direct_debit_mandate' => ['singular' => 'Lastschriftmandat', 'plural' => 'Lastschriftmandate'],
     'direct_debit' => ['singular' => 'Lastschrift', 'plural' => 'Lastschriften'],
+    'sync_run' => ['singular' => 'Sync-Lauf', 'plural' => 'Sync-Läufe'],
 ];
