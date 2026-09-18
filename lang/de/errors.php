@@ -86,4 +86,6 @@ return [
     'foreign_currency_unsupported' => 'Buchungen müssen in der Hauswährung des Mandanten erfolgen. Eine Fremdwährungsumrechnung ist nicht implementiert.',
     'invalid_line_discount' => 'Der Positionsrabatt ist ungültig. Verwenden Sie einen Prozentsatz wie 10% oder einen Betrag in Belegwährung, der den Nettobetrag nicht übersteigt.',
     'unsupported_document_type' => 'Diese Belegart ist für den aktuellen Vorgang nicht zulässig.',
+    'unsupported_allowance_charge' => 'Diese E-Rechnung enthält Zu- oder Abschläge, die nicht sicher importiert werden können (:detail). Das Original bleibt zur Prüfung erhalten.',
+    'allowance_charge_totals_mismatch' => 'Zu-/Abschläge stimmen nicht mit den Rechnungsgesamtsummen überein (:detail). Das Original bleibt zur Prüfung erhalten.',
 ];
