@@ -987,6 +987,19 @@ Intake archive-before-parse is unchanged. Unit fixtures under
 supported and fail-closed cases; please run the full suite locally or in CI before
 merge.
 
+### E-invoice tax mapping (DE EUR) — 18 September 2026 (F7)
+
+[MapImportedEInvoiceTax](../src/Tax/MapImportedEInvoiceTax.php) maps EN 16931 /
+UNTDID 5305 category + rate from structured purchase imports onto the package
+DE tax codes (DE-19, DE-7, DE-0, DE-RC, DE-IG-ACQ, DE-EXPORT), including
+temporary COVID rates 16%/5% that share the DE-19/DE-7 codes. Unknown rates,
+inconsistent category/rate pairs, and unknown categories **fail closed** with
+unmapped_e_invoice_tax; intake evidence is retained and no draft document is
+created. Scope remains DE EUR only — foreign VAT rates stay rejected. This does
+not close F7 (schema validation and full EN 16931 conformance remain open).
+Coverage: [MapImportedEInvoiceTaxTest](../tests/Tax/MapImportedEInvoiceTaxTest.php)
+and [EInvoiceTaxMappingImportTest](../tests/Documents/EInvoiceTaxMappingImportTest.php).
+
 ### CI verification — 12 September 2026 (F9)
 
 The previously unobserved remote MySQL 8.4 concurrency job ran and passed on
