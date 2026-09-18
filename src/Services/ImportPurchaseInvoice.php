@@ -92,8 +92,6 @@ final class ImportPurchaseInvoice
                 return $result;
             });
         } catch (\Throwable $exception) {
-            // The independently committed intake survives the business rollback.
-            // A failure to record the outcome must not mask the processing error.
             try {
                 $entity->getConnection()->transaction(function () use ($entity, $intake, $exception, $attempt): void {
                     LegalEntity::query()->whereKey($entity->getKey())->lockForUpdate()->firstOrFail();
@@ -181,7 +179,6 @@ final class ImportPurchaseInvoice
             ] : null,
             'document_allowance_charges' => $parsed?->meta['document_allowance_charges'] ?? [],
         ];
-        // Business writes share one transaction; retained intake bytes are independent.
         $document = $this->invoices->createDraft($entity, [
             'party_id' => $party?->getKey(),
             'supplier_invoice_number' => $parsed?->documentNumber ?: null,
@@ -200,7 +197,6 @@ final class ImportPurchaseInvoice
             if (isset($intake->files['companion'])) {
                 $this->linkOriginal($intake, $document, 'companion', $eInvoiceSourceType);
             } elseif (strtolower((string) pathinfo($filename, PATHINFO_EXTENSION)) === 'xml') {
-                // Standalone XML is the original itself, not a second required file.
             } else {
                 $this->attachments->handle(
                     $entity,
@@ -240,7 +236,7 @@ final class ImportPurchaseInvoice
         }
         if ($extension === 'pdf') {
             if (! str_starts_with($contents, '%PDF-')) {
-                throw new DocumentException(__('filament-accounting::errors.purchase_invoice_pdf_required') === '' ? '' : __('filament-accounting::errors.invalid_pdf'));
+                throw new DocumentException(__('filament-accounting::errors.invalid_pdf'));
             }
             try {
                 $embedded = ZugferdDocumentPdfReaderExt::getInvoiceDocumentContentFromContent($contents);
@@ -365,9 +361,6 @@ final class ImportPurchaseInvoice
             default => null,
         };
 
-        // A parsed e-invoice line may carry its own net (after a line-level
-        // allowance or charge) that differs from quantity × unit price. Carry it
-        // through so the draft posts the source amount and the totals reconcile.
         $netMinor = $line['net_minor'] ?? $line['line_net_minor'] ?? null;
 
         return [
