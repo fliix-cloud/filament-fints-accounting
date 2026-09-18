@@ -25,7 +25,7 @@ final class MapImportedEInvoiceTax
             'G' => $this->zeroRated($rateBp, $normalized, 'DE-EXPORT'),
             'E', 'Z' => $this->zeroRated($rateBp, $normalized, 'DE-0'),
             'S', '' => $this->standardOrBlank($rateBp, $normalized),
-            default => throw $this->unmapped($rateBp, $normalized !== '' ? $normalized : null),
+            default => throw $this->unmapped($rateBp, $normalized),
         };
     }
 

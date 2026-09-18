@@ -6,6 +6,7 @@ use FilamentAccounting\Exceptions\DocumentException;
 use FilamentAccounting\Models\PurchaseInvoiceIntake;
 use FilamentAccounting\Services\ImportPurchaseInvoice;
 use FilamentAccounting\Tests\TestCase;
+use Illuminate\Foundation\Testing\RefreshDatabaseState;
 use Illuminate\Support\Facades\Storage;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
@@ -16,6 +17,13 @@ use PHPUnit\Framework\Attributes\Test;
  */
 class EInvoiceTaxMappingImportTest extends TestCase
 {
+    protected function refreshTestDatabase(): void
+    {
+        // Intake refuses an enclosing transaction; commit for real like PurchaseInvoiceUploadTest.
+        RefreshDatabaseState::$migrated = false;
+        $this->migrateDatabases();
+    }
+
     protected function setUp(): void
     {
         parent::setUp();
