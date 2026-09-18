@@ -13,6 +13,7 @@ use FilamentAccounting\Banking\FinTs\Events\BankBalancesSynced;
 use FilamentAccounting\Banking\FinTs\Exceptions\UnsupportedCapabilityException;
 use FilamentAccounting\Banking\FinTs\Models\BankConnection;
 use FilamentAccounting\Banking\FinTs\Models\BankSyncRun;
+use FilamentAccounting\Contracts\AccountingAuthorizer;
 use FilamentAccounting\Models\AccountingBankAccount as BankAccount;
 use FilamentAccounting\Support\ExactMoney;
 use Illuminate\Database\Eloquent\Model;
@@ -23,10 +24,12 @@ class BalanceSyncService
         private readonly FintsClientFactory $factory,
         private readonly StrongAuthenticationCoordinator $sca,
         private readonly StatementBalanceReconciler $balanceReconciler,
+        private readonly AccountingAuthorizer $authorizer,
     ) {}
 
     public function sync(BankAccount $account, ?Model $actor = null, ?string $returnUrl = null): ScaOutcome
     {
+        $this->authorizer->authorize('sync_bank', $account);
         $this->assertUsable($account);
 
         $connection = $account->connection;
