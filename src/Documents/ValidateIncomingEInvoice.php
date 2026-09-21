@@ -15,7 +15,8 @@ use horstoeko\zugferd\ZugferdSettings;
  * Fail-closed schema + DE-EUR EN 16931 reception subset for incoming e-invoices.
  *
  * This is a documented subset gate (schema + material BRs including buyer,
- * BG-23, CIUS identifiers, XRechnung electronic addresses, and payment means).
+ * BG-23, CIUS identifiers, XRechnung electronic addresses, payment means,
+ * buyer reference, and seller contact).
  * It is not a full Schematron / XRechnung / ZUGFeRD certification engine.
  */
 final class ValidateIncomingEInvoice
@@ -92,6 +93,8 @@ final class ValidateIncomingEInvoice
         $this->assertSpecification($parsed->customizationId, $parsed->profileId);
         $this->assertElectronicAddresses($parsed);
         $this->assertXrechnungPaymentMeans($parsed);
+        $this->assertXrechnungBuyerReference($parsed);
+        $this->assertXrechnungSellerContact($parsed);
 
         $sumLineNets = 0;
         $computedTax = 0;
@@ -184,7 +187,7 @@ final class ValidateIncomingEInvoice
 
         $profile = strtolower(trim((string) $profileId));
         if ($this->isXrechnung($spec) && $profile === '') {
-            throw $this->businessRule('BR-DE-2', 'Business process type (BT-23) is missing for XRechnung');
+            throw $this->businessRule('PEPPOL-EN16931-R001', 'Business process type (BT-23) is missing for XRechnung');
         }
         if ($profile !== '' && $profile !== self::PEPPOL_BILLING_PROCESS) {
             throw $this->businessRule(
@@ -280,6 +283,39 @@ final class ValidateIncomingEInvoice
             if (in_array($code, self::DIRECT_DEBIT_CODES, true) && ! filled($means['debtor_iban'])) {
                 throw $this->businessRule('BR-DE-25', 'Direct debit (BG-19) IBAN (BT-91) is missing');
             }
+        }
+    }
+
+    private function assertXrechnungBuyerReference(EInvoiceParseResult $parsed): void
+    {
+        if (! $this->isXrechnung($parsed->customizationId)) {
+            return;
+        }
+        if (! filled($parsed->buyerReference)) {
+            throw $this->businessRule('BR-DE-15', 'Buyer reference (BT-10) is missing');
+        }
+    }
+
+    private function assertXrechnungSellerContact(EInvoiceParseResult $parsed): void
+    {
+        if (! $this->isXrechnung($parsed->customizationId)) {
+            return;
+        }
+
+        $name = trim((string) $parsed->sellerContactName);
+        $phone = trim((string) $parsed->sellerContactPhone);
+        $email = trim((string) $parsed->sellerContactEmail);
+        if ($name === '' && $phone === '' && $email === '') {
+            throw $this->businessRule('BR-DE-2', 'Seller contact (BG-6) is missing');
+        }
+        if ($name === '') {
+            throw $this->businessRule('BR-DE-5', 'Seller contact point (BT-41) is missing');
+        }
+        if ($phone === '') {
+            throw $this->businessRule('BR-DE-6', 'Seller contact telephone number (BT-42) is missing');
+        }
+        if ($email === '') {
+            throw $this->businessRule('BR-DE-7', 'Seller contact email address (BT-43) is missing');
         }
     }
 

@@ -69,6 +69,10 @@ class IncomingEInvoiceConformityTest extends TestCase
         $this->assertSame('380', $parsed->invoiceTypeCode);
         $this->assertSame('urn:cen.eu:en16931:2017#compliant#urn:xeinkauf.de:kosit:xrechnung_3.0', $parsed->customizationId);
         $this->assertSame('urn:fdc:peppol.eu:2017:poacc:billing:01:1.0', $parsed->profileId);
+        $this->assertSame('BUYER-REF-1', $parsed->buyerReference);
+        $this->assertSame('Buchhaltung', $parsed->sellerContactName);
+        $this->assertSame('+493012345678', $parsed->sellerContactPhone);
+        $this->assertSame('seller@vendor.example', $parsed->sellerContactEmail);
         $this->assertSame('seller@vendor.example', $parsed->sellerElectronicAddress);
         $this->assertSame('EM', $parsed->sellerElectronicAddressScheme);
         $this->assertSame('buyer@customer.example', $parsed->buyerElectronicAddress);
@@ -252,7 +256,7 @@ class IncomingEInvoiceConformityTest extends TestCase
         yield 'missing CustomizationID' => ['br-cius-missing.xml', 'BR-01: Specification identifier (BT-24) is missing'];
         yield 'XRechnung without ProfileID' => [
             'br-xrechnung-missing-profile.xml',
-            'BR-DE-2: Business process type (BT-23) is missing for XRechnung',
+            'PEPPOL-EN16931-R001: Business process type (BT-23) is missing for XRechnung',
         ];
         yield 'XRechnung missing seller endpoint' => [
             'br-xrechnung-missing-seller-endpoint.xml',
@@ -273,6 +277,14 @@ class IncomingEInvoiceConformityTest extends TestCase
         yield 'XRechnung credit transfer without IBAN' => [
             'br-xrechnung-payment-58-no-iban.xml',
             'BR-DE-23: Credit transfer (BG-17) IBAN (BT-84) is missing',
+        ];
+        yield 'XRechnung missing buyer reference' => [
+            'br-xrechnung-missing-buyer-reference.xml',
+            'BR-DE-15: Buyer reference (BT-10) is missing',
+        ];
+        yield 'XRechnung missing seller contact' => [
+            'br-xrechnung-missing-seller-contact.xml',
+            'BR-DE-2: Seller contact (BG-6) is missing',
         ];
     }
 

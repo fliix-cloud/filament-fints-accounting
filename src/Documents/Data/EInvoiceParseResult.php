@@ -49,5 +49,9 @@ final readonly class EInvoiceParseResult
         public ?string $buyerElectronicAddress = null,
         public ?string $buyerElectronicAddressScheme = null,
         public array $paymentMeans = [],
+        public ?string $buyerReference = null,
+        public ?string $sellerContactName = null,
+        public ?string $sellerContactPhone = null,
+        public ?string $sellerContactEmail = null,
     ) {}
 }

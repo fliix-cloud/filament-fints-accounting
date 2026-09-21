@@ -8,10 +8,17 @@
   <cbc:IssueDate>2026-03-10</cbc:IssueDate>
   <cbc:InvoiceTypeCode>380</cbc:InvoiceTypeCode>
   <cbc:DocumentCurrencyCode>EUR</cbc:DocumentCurrencyCode>
+  <cbc:BuyerReference>BUYER-REF-1</cbc:BuyerReference>
+
   <cac:AccountingSupplierParty>
     <cac:Party>
       <cac:PartyName><cbc:Name>Vendor GmbH</cbc:Name></cac:PartyName>
       <cac:PartyTaxScheme><cbc:CompanyID>DE999999999</cbc:CompanyID></cac:PartyTaxScheme>
+      <cac:Contact>
+        <cbc:Name>Buchhaltung</cbc:Name>
+        <cbc:Telephone>+493012345678</cbc:Telephone>
+        <cbc:ElectronicMail>seller@vendor.example</cbc:ElectronicMail>
+      </cac:Contact>
     </cac:Party>
   </cac:AccountingSupplierParty>
   <cac:AccountingCustomerParty>
