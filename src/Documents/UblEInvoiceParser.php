@@ -83,18 +83,13 @@ final class UblEInvoiceParser
 
         $number = $this->value($xpath, "/*[local-name()='Invoice']/*[local-name()='ID']");
         $issueDate = $this->value($xpath, "/*[local-name()='Invoice']/*[local-name()='IssueDate']") ?: null;
-        $supplier = $xpath->query("//*[local-name()='AccountingSupplierParty']")?->item(0);
-        $sellerName = $supplier
-            ? ($this->value($xpath, ".//*[local-name()='PartyName']/*[local-name()='Name']", $supplier)
-                ?: $this->value($xpath, ".//*[local-name()='PartyLegalEntity']/*[local-name()='RegistrationName']", $supplier))
-            : null;
-        $sellerVatId = $supplier ? $this->value($xpath, ".//*[local-name()='PartyTaxScheme']/*[local-name()='CompanyID']", $supplier) : null;
-        $sellerAddressLine1 = $supplier ? $this->value($xpath, ".//*[local-name()='PostalAddress']/*[local-name()='StreetName']", $supplier) : null;
-        $sellerAddressLine2 = $supplier ? $this->value($xpath, ".//*[local-name()='PostalAddress']/*[local-name()='AdditionalStreetName']", $supplier) : null;
-        $sellerPostalCode = $supplier ? $this->value($xpath, ".//*[local-name()='PostalAddress']/*[local-name()='PostalZone']", $supplier) : null;
-        $sellerCity = $supplier ? $this->value($xpath, ".//*[local-name()='PostalAddress']/*[local-name()='CityName']", $supplier) : null;
-        $sellerCountry = $supplier ? $this->value($xpath, ".//*[local-name()='PostalAddress']//*[local-name()='IdentificationCode']", $supplier) : null;
-        $sellerEmail = $supplier ? $this->value($xpath, ".//*[local-name()='Contact']/*[local-name()='ElectronicMail']", $supplier) : null;
+        $invoiceTypeCode = $this->nullable($this->value($xpath, "/*[local-name()='Invoice']/*[local-name()='InvoiceTypeCode']"));
+        $customizationId = $this->nullable($this->value($xpath, "/*[local-name()='Invoice']/*[local-name()='CustomizationID']"));
+        $profileId = $this->nullable($this->value($xpath, "/*[local-name()='Invoice']/*[local-name()='ProfileID']"));
+        $supplier = $xpath->query("/*[local-name()='Invoice']/*[local-name()='AccountingSupplierParty']")?->item(0);
+        $seller = $this->parseParty($xpath, $supplier);
+        $customer = $xpath->query("/*[local-name()='Invoice']/*[local-name()='AccountingCustomerParty']")?->item(0);
+        $buyer = $this->parseParty($xpath, $customer);
         $net = $this->minor($this->value($xpath, "//*[local-name()='LegalMonetaryTotal']/*[local-name()='TaxExclusiveAmount']"), $currency);
         if ($net === 0) {
             $net = $this->minor($this->value($xpath, "//*[local-name()='LegalMonetaryTotal']/*[local-name()='LineExtensionAmount']"), $currency);
@@ -119,20 +114,29 @@ final class UblEInvoiceParser
             grossMinor: $gross,
             netMinor: $net,
             taxMinor: $tax,
-            sellerName: $sellerName ?: null,
-            sellerVatId: $sellerVatId ?: null,
+            sellerName: $seller['name'],
+            sellerVatId: $seller['vat_id'],
             lines: $lines,
             originalXml: $contents,
             sha256: $hash,
             valid: $validationErrors === [],
             errors: $validationErrors,
             meta: $meta,
-            sellerAddressLine1: $sellerAddressLine1 ?: null,
-            sellerAddressLine2: $sellerAddressLine2 ?: null,
-            sellerPostalCode: $sellerPostalCode ?: null,
-            sellerCity: $sellerCity ?: null,
-            sellerCountryCode: $sellerCountry ?: null,
-            sellerEmail: $sellerEmail ?: null,
+            sellerAddressLine1: $seller['address_line1'],
+            sellerAddressLine2: $seller['address_line2'],
+            sellerPostalCode: $seller['postal_code'],
+            sellerCity: $seller['city'],
+            sellerCountryCode: $seller['country_code'],
+            sellerEmail: $seller['email'],
+            invoiceTypeCode: $invoiceTypeCode,
+            customizationId: $customizationId,
+            profileId: $profileId,
+            buyerName: $buyer['name'],
+            buyerAddressLine1: $buyer['address_line1'],
+            buyerPostalCode: $buyer['postal_code'],
+            buyerCity: $buyer['city'],
+            buyerCountryCode: $buyer['country_code'],
+            vatBreakdown: $this->parseVatBreakdown($xpath, $currency),
         );
     }
 
@@ -314,6 +318,62 @@ final class UblEInvoiceParser
     private function value(\DOMXPath $xpath, string $expression, ?\DOMNode $context = null): string
     {
         return trim((string) $xpath->evaluate('string('.$expression.')', $context));
+    }
+
+    private function nullable(string $value): ?string
+    {
+        return $value === '' ? null : $value;
+    }
+
+    /**
+     * @return array{name: ?string, vat_id: ?string, address_line1: ?string, address_line2: ?string, postal_code: ?string, city: ?string, country_code: ?string, email: ?string}
+     */
+    private function parseParty(\DOMXPath $xpath, ?\DOMNode $party): array
+    {
+        if (! $party instanceof \DOMNode) {
+            return [
+                'name' => null,
+                'vat_id' => null,
+                'address_line1' => null,
+                'address_line2' => null,
+                'postal_code' => null,
+                'city' => null,
+                'country_code' => null,
+                'email' => null,
+            ];
+        }
+
+        return [
+            'name' => $this->nullable(
+                $this->value($xpath, ".//*[local-name()='PartyName']/*[local-name()='Name']", $party)
+                    ?: $this->value($xpath, ".//*[local-name()='PartyLegalEntity']/*[local-name()='RegistrationName']", $party),
+            ),
+            'vat_id' => $this->nullable($this->value($xpath, ".//*[local-name()='PartyTaxScheme']/*[local-name()='CompanyID']", $party)),
+            'address_line1' => $this->nullable($this->value($xpath, ".//*[local-name()='PostalAddress']/*[local-name()='StreetName']", $party)),
+            'address_line2' => $this->nullable($this->value($xpath, ".//*[local-name()='PostalAddress']/*[local-name()='AdditionalStreetName']", $party)),
+            'postal_code' => $this->nullable($this->value($xpath, ".//*[local-name()='PostalAddress']/*[local-name()='PostalZone']", $party)),
+            'city' => $this->nullable($this->value($xpath, ".//*[local-name()='PostalAddress']/*[local-name()='CityName']", $party)),
+            'country_code' => $this->nullable($this->value($xpath, ".//*[local-name()='PostalAddress']//*[local-name()='IdentificationCode']", $party)),
+            'email' => $this->nullable($this->value($xpath, ".//*[local-name()='Contact']/*[local-name()='ElectronicMail']", $party)),
+        ];
+    }
+
+    /**
+     * @return list<array{category: string, rate_bp: int|null, taxable_minor: int, tax_minor: int}>
+     */
+    private function parseVatBreakdown(\DOMXPath $xpath, string $currency): array
+    {
+        $groups = [];
+        foreach ($xpath->query("/*[local-name()='Invoice']/*[local-name()='TaxTotal']/*[local-name()='TaxSubtotal']") ?: [] as $node) {
+            $groups[] = [
+                'category' => $this->value($xpath, "./*[local-name()='TaxCategory']/*[local-name()='ID']", $node),
+                'rate_bp' => $this->percentToBasisPoints($this->value($xpath, "./*[local-name()='TaxCategory']/*[local-name()='Percent']", $node)),
+                'taxable_minor' => $this->minor($this->value($xpath, "./*[local-name()='TaxableAmount']", $node), $currency),
+                'tax_minor' => $this->minor($this->value($xpath, "./*[local-name()='TaxAmount']", $node), $currency),
+            ];
+        }
+
+        return $groups;
     }
 
     private function percentToBasisPoints(string $percent): ?int

@@ -171,6 +171,8 @@ final class ImportPurchaseInvoice
             'validated' => $parsed instanceof EInvoiceParseResult,
             'extracted' => $parsed instanceof EInvoiceParseResult,
             'validation_status' => $parsed instanceof EInvoiceParseResult ? 'de_eur_subset_passed' : 'not_checked',
+            'specification_identifier' => $parsed?->customizationId,
+            'business_process_id' => $parsed?->profileId,
             'intake_id' => $intake->getKey(),
             'original_format' => strtolower((string) pathinfo($filename, PATHINFO_EXTENSION)),
             'supplier_match' => $match,

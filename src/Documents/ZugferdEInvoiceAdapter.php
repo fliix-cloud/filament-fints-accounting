@@ -6,6 +6,7 @@ use FilamentAccounting\Banking\FinTs\Support\Money;
 use FilamentAccounting\Contracts\EInvoiceAdapter;
 use FilamentAccounting\Documents\Data\EInvoiceParseResult;
 use FilamentAccounting\Exceptions\DocumentException;
+use FilamentAccounting\Exceptions\InvalidMoneyException;
 use FilamentAccounting\Support\ExactMoney;
 use FilamentAccounting\Support\RichText;
 use horstoeko\zugferd\ZugferdDocumentBuilder;
@@ -75,6 +76,22 @@ final class ZugferdEInvoiceAdapter implements EInvoiceAdapter
         $sellerCountry = null;
         $subDivision = null;
         $reader->getDocumentSellerAddress($lineOne, $lineTwo, $lineThree, $sellerPostcode, $sellerCity, $sellerCountry, $subDivision);
+
+        $buyerName = null;
+        $buyerIds = null;
+        $buyerDescription = null;
+        $reader->getDocumentBuyer($buyerName, $buyerIds, $buyerDescription);
+        $buyerLineOne = null;
+        $buyerLineTwo = null;
+        $buyerLineThree = null;
+        $buyerPostcode = null;
+        $buyerCity = null;
+        $buyerCountry = null;
+        $buyerSubDivision = null;
+        $reader->getDocumentBuyerAddress($buyerLineOne, $buyerLineTwo, $buyerLineThree, $buyerPostcode, $buyerCity, $buyerCountry, $buyerSubDivision);
+
+        $businessProcess = null;
+        $reader->getDocumentBusinessProcess($businessProcess);
 
         $taxReg = null;
         $reader->getDocumentSellerTaxRegistration($taxReg);
@@ -240,12 +257,27 @@ final class ZugferdEInvoiceAdapter implements EInvoiceAdapter
             sellerPostalCode: $sellerPostcode,
             sellerCity: $sellerCity,
             sellerCountryCode: $sellerCountry,
+            invoiceTypeCode: filled($documentTypeCode) ? (string) $documentTypeCode : null,
+            customizationId: $this->ciiContextId($contents, 'GuidelineSpecifiedDocumentContextParameter'),
+            profileId: filled($businessProcess)
+                ? (string) $businessProcess
+                : $this->ciiContextId($contents, 'BusinessProcessSpecifiedDocumentContextParameter'),
+            buyerName: filled($buyerName) ? (string) $buyerName : null,
+            buyerAddressLine1: filled($buyerLineOne) ? (string) $buyerLineOne : null,
+            buyerPostalCode: filled($buyerPostcode) ? (string) $buyerPostcode : null,
+            buyerCity: filled($buyerCity) ? (string) $buyerCity : null,
+            buyerCountryCode: filled($buyerCountry) ? (string) $buyerCountry : null,
+            vatBreakdown: $this->parseCiiVatBreakdown($contents, $currency),
         );
     }
 
     public function generate(array $snapshot): string
     {
-        $builder = ZugferdDocumentBuilder::CreateNew(ZugferdProfiles::PROFILE_EN16931);
+        $profile = match ((string) ($snapshot['e_invoice_profile'] ?? 'en16931')) {
+            'xrechnung_3' => ZugferdProfiles::PROFILE_XRECHNUNG_3,
+            default => ZugferdProfiles::PROFILE_EN16931,
+        };
+        $builder = ZugferdDocumentBuilder::CreateNew($profile);
         $number = (string) ($snapshot['number'] ?? 'DRAFT');
         $issueDate = new \DateTimeImmutable((string) ($snapshot['issue_date'] ?? 'now'));
         $currency = (string) ($snapshot['currency'] ?? 'EUR');
@@ -385,5 +417,76 @@ final class ZugferdEInvoiceAdapter implements EInvoiceAdapter
         }
 
         return ExactMoney::ofString((string) $amount, $currency)->minorAmount;
+    }
+
+    private function ciiContextId(string $contents, string $localName): ?string
+    {
+        $document = $this->loadCiiDom($contents);
+        if (! $document instanceof \DOMDocument) {
+            return null;
+        }
+
+        $value = trim((string) (new \DOMXPath($document))->evaluate(
+            "string(//*[local-name()='{$localName}']/*[local-name()='ID'])",
+        ));
+
+        return $value === '' ? null : $value;
+    }
+
+    /**
+     * @return list<array{category: string, rate_bp: int|null, taxable_minor: int, tax_minor: int}>
+     */
+    private function parseCiiVatBreakdown(string $contents, string $currency): array
+    {
+        $document = $this->loadCiiDom($contents);
+        if (! $document instanceof \DOMDocument) {
+            return [];
+        }
+
+        $xpath = new \DOMXPath($document);
+        $groups = [];
+        $nodes = $xpath->query("//*[local-name()='ApplicableHeaderTradeSettlement']/*[local-name()='ApplicableTradeTax']") ?: [];
+        foreach ($nodes as $node) {
+            $percent = trim((string) $xpath->evaluate("string(./*[local-name()='RateApplicablePercent'])", $node));
+            $groups[] = [
+                'category' => trim((string) $xpath->evaluate("string(./*[local-name()='CategoryCode'])", $node)),
+                'rate_bp' => $this->percentToBasisPoints($percent, $currency),
+                'taxable_minor' => $this->toMinor(
+                    trim((string) $xpath->evaluate("string(./*[local-name()='BasisAmount'])", $node)),
+                    $currency,
+                ),
+                'tax_minor' => $this->toMinor(
+                    trim((string) $xpath->evaluate("string(./*[local-name()='CalculatedAmount'])", $node)),
+                    $currency,
+                ),
+            ];
+        }
+
+        return $groups;
+    }
+
+    private function percentToBasisPoints(string $percent, string $currency): ?int
+    {
+        $percent = trim(str_replace(',', '.', $percent));
+        if ($percent === '' || ! is_numeric($percent)) {
+            return null;
+        }
+
+        try {
+            return ExactMoney::ofString($percent, $currency)->minorAmount;
+        } catch (InvalidMoneyException) {
+            return null;
+        }
+    }
+
+    private function loadCiiDom(string $contents): ?\DOMDocument
+    {
+        $document = new \DOMDocument;
+        $previous = libxml_use_internal_errors(true);
+        $loaded = $document->loadXML($contents, LIBXML_NONET | LIBXML_NOBLANKS);
+        libxml_clear_errors();
+        libxml_use_internal_errors($previous);
+
+        return $loaded ? $document : null;
     }
 }
