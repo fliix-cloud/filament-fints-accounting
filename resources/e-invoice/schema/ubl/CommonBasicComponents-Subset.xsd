@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2"
+           targetNamespace="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2"
+           elementFormDefault="qualified"
+           attributeFormDefault="unqualified">
+  <xs:complexType name="AmountType">
+    <xs:simpleContent>
+      <xs:extension base="xs:decimal">
+        <xs:attribute name="currencyID" type="xs:string"/>
+      </xs:extension>
+    </xs:simpleContent>
+  </xs:complexType>
+  <xs:complexType name="QuantityType">
+    <xs:simpleContent>
+      <xs:extension base="xs:decimal">
+        <xs:attribute name="unitCode" type="xs:string"/>
+      </xs:extension>
+    </xs:simpleContent>
+  </xs:complexType>
+  <xs:complexType name="CodeType">
+    <xs:simpleContent>
+      <xs:extension base="xs:string">
+        <xs:attribute name="listID" type="xs:string"/>
+        <xs:attribute name="schemeID" type="xs:string"/>
+      </xs:extension>
+    </xs:simpleContent>
+  </xs:complexType>
+  <xs:complexType name="IdentifierType">
+    <xs:simpleContent>
+      <xs:extension base="xs:string">
+        <xs:attribute name="schemeID" type="xs:string"/>
+      </xs:extension>
+    </xs:simpleContent>
+  </xs:complexType>
+
+  <xs:element name="UBLVersionID" type="xs:string"/>
+  <xs:element name="CustomizationID" type="xs:string"/>
+  <xs:element name="ProfileID" type="xs:string"/>
+  <xs:element name="ProfileExecutionID" type="xs:string"/>
+  <xs:element name="ID" type="cbc:IdentifierType"/>
+  <xs:element name="CopyIndicator" type="xs:boolean"/>
+  <xs:element name="UUID" type="xs:string"/>
+  <xs:element name="IssueDate" type="xs:date"/>
+  <xs:element name="IssueTime" type="xs:string"/>
+  <xs:element name="DueDate" type="xs:date"/>
+  <xs:element name="InvoiceTypeCode" type="xs:string"/>
+  <xs:element name="Note" type="xs:string"/>
+  <xs:element name="TaxPointDate" type="xs:date"/>
+  <xs:element name="DocumentCurrencyCode" type="xs:string"/>
+  <xs:element name="TaxCurrencyCode" type="xs:string"/>
+  <xs:element name="PricingCurrencyCode" type="xs:string"/>
+  <xs:element name="PaymentCurrencyCode" type="xs:string"/>
+  <xs:element name="PaymentAlternativeCurrencyCode" type="xs:string"/>
+  <xs:element name="AccountingCostCode" type="xs:string"/>
+  <xs:element name="AccountingCost" type="xs:string"/>
+  <xs:element name="LineCountNumeric" type="xs:decimal"/>
+  <xs:element name="BuyerReference" type="xs:string"/>
+  <xs:element name="EndpointID" type="cbc:IdentifierType"/>
+  <xs:element name="Name" type="xs:string"/>
+  <xs:element name="Description" type="xs:string"/>
+  <xs:element name="StreetName" type="xs:string"/>
+  <xs:element name="AdditionalStreetName" type="xs:string"/>
+  <xs:element name="CityName" type="xs:string"/>
+  <xs:element name="PostalZone" type="xs:string"/>
+  <xs:element name="CountrySubentity" type="xs:string"/>
+  <xs:element name="IdentificationCode" type="xs:string"/>
+  <xs:element name="CompanyID" type="cbc:IdentifierType"/>
+  <xs:element name="RegistrationName" type="xs:string"/>
+  <xs:element name="ElectronicMail" type="xs:string"/>
+  <xs:element name="Telephone" type="xs:string"/>
+  <xs:element name="Percent" type="xs:decimal"/>
+  <xs:element name="ChargeIndicator" type="xs:boolean"/>
+  <xs:element name="AllowanceChargeReason" type="xs:string"/>
+  <xs:element name="AllowanceChargeReasonCode" type="xs:string"/>
+  <xs:element name="MultiplierFactorNumeric" type="xs:decimal"/>
+  <xs:element name="Amount" type="cbc:AmountType"/>
+  <xs:element name="BaseAmount" type="cbc:AmountType"/>
+  <xs:element name="LineExtensionAmount" type="cbc:AmountType"/>
+  <xs:element name="TaxableAmount" type="cbc:AmountType"/>
+  <xs:element name="TaxAmount" type="cbc:AmountType"/>
+  <xs:element name="TaxExclusiveAmount" type="cbc:AmountType"/>
+  <xs:element name="TaxInclusiveAmount" type="cbc:AmountType"/>
+  <xs:element name="AllowanceTotalAmount" type="cbc:AmountType"/>
+  <xs:element name="ChargeTotalAmount" type="cbc:AmountType"/>
+  <xs:element name="PrepaidAmount" type="cbc:AmountType"/>
+  <xs:element name="PayableRoundingAmount" type="cbc:AmountType"/>
+  <xs:element name="PayableAmount" type="cbc:AmountType"/>
+  <xs:element name="PriceAmount" type="cbc:AmountType"/>
+  <xs:element name="InvoicedQuantity" type="cbc:QuantityType"/>
+  <xs:element name="BaseQuantity" type="cbc:QuantityType"/>
+  <xs:element name="PaymentMeansCode" type="xs:string"/>
+  <xs:element name="PaymentID" type="xs:string"/>
+  <xs:element name="InstructionNote" type="xs:string"/>
+  <xs:element name="StartDate" type="xs:date"/>
+  <xs:element name="EndDate" type="xs:date"/>
+  <xs:element name="CompanyLegalForm" type="xs:string"/>
+  <xs:element name="Value" type="xs:string"/>
+  <xs:element name="URI" type="xs:string"/>
+  <xs:element name="EmbeddedDocumentBinaryObject" type="xs:string"/>
+  <xs:element name="AttributeID" type="xs:string"/>
+  <xs:element name="PercentNumeric" type="xs:decimal"/>
+</xs:schema>

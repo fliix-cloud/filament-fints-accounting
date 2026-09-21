@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Package UBL Invoice subset schema for incoming DE-EUR e-invoice intake.
+
+  This is not the full OASIS UBL 2.1 Invoice XSD. It type-checks the elements
+  the package imports (identifiers, dates, amounts, parties, lines, tax,
+  allowance/charge) and allows the usual EN 16931 optional aggregates as
+  opaque nodes. Full OASIS UBL XSD / XRechnung CIUS remain deferred.
+-->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2"
+           xmlns:cac="urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2"
+           xmlns:ext="urn:oasis:names:specification:ubl:schema:xsd:CommonExtensionComponents-2"
+           xmlns="urn:oasis:names:specification:ubl:schema:xsd:Invoice-2"
+           targetNamespace="urn:oasis:names:specification:ubl:schema:xsd:Invoice-2"
+           elementFormDefault="qualified"
+           attributeFormDefault="unqualified">
+  <xs:import namespace="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2"
+             schemaLocation="CommonBasicComponents-Subset.xsd"/>
+  <xs:import namespace="urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2"
+             schemaLocation="CommonAggregateComponents-Subset.xsd"/>
+  <xs:import namespace="urn:oasis:names:specification:ubl:schema:xsd:CommonExtensionComponents-2"
+             schemaLocation="CommonExtensionComponents-Subset.xsd"/>
+
+  <xs:element name="Invoice">
+    <xs:complexType>
+      <xs:choice minOccurs="0" maxOccurs="unbounded">
+        <xs:element ref="ext:UBLExtensions"/>
+        <xs:element ref="cbc:UBLVersionID"/>
+        <xs:element ref="cbc:CustomizationID"/>
+        <xs:element ref="cbc:ProfileID"/>
+        <xs:element ref="cbc:ProfileExecutionID"/>
+        <xs:element ref="cbc:ID"/>
+        <xs:element ref="cbc:CopyIndicator"/>
+        <xs:element ref="cbc:UUID"/>
+        <xs:element ref="cbc:IssueDate"/>
+        <xs:element ref="cbc:IssueTime"/>
+        <xs:element ref="cbc:DueDate"/>
+        <xs:element ref="cbc:InvoiceTypeCode"/>
+        <xs:element ref="cbc:Note"/>
+        <xs:element ref="cbc:TaxPointDate"/>
+        <xs:element ref="cbc:DocumentCurrencyCode"/>
+        <xs:element ref="cbc:TaxCurrencyCode"/>
+        <xs:element ref="cbc:PricingCurrencyCode"/>
+        <xs:element ref="cbc:PaymentCurrencyCode"/>
+        <xs:element ref="cbc:PaymentAlternativeCurrencyCode"/>
+        <xs:element ref="cbc:AccountingCostCode"/>
+        <xs:element ref="cbc:AccountingCost"/>
+        <xs:element ref="cbc:LineCountNumeric"/>
+        <xs:element ref="cbc:BuyerReference"/>
+        <xs:element ref="cac:InvoicePeriod"/>
+        <xs:element ref="cac:OrderReference"/>
+        <xs:element ref="cac:BillingReference"/>
+        <xs:element ref="cac:DespatchDocumentReference"/>
+        <xs:element ref="cac:ReceiptDocumentReference"/>
+        <xs:element ref="cac:StatementDocumentReference"/>
+        <xs:element ref="cac:OriginatorDocumentReference"/>
+        <xs:element ref="cac:ContractDocumentReference"/>
+        <xs:element ref="cac:AdditionalDocumentReference"/>
+        <xs:element ref="cac:ProjectReference"/>
+        <xs:element ref="cac:AccountingSupplierParty"/>
+        <xs:element ref="cac:AccountingCustomerParty"/>
+        <xs:element ref="cac:PayeeParty"/>
+        <xs:element ref="cac:BuyerCustomerParty"/>
+        <xs:element ref="cac:SellerSupplierParty"/>
+        <xs:element ref="cac:TaxRepresentativeParty"/>
+        <xs:element ref="cac:Delivery"/>
+        <xs:element ref="cac:DeliveryTerms"/>
+        <xs:element ref="cac:PaymentMeans"/>
+        <xs:element ref="cac:PaymentTerms"/>
+        <xs:element ref="cac:PrepaidPayment"/>
+        <xs:element ref="cac:AllowanceCharge"/>
+        <xs:element ref="cac:TaxExchangeRate"/>
+        <xs:element ref="cac:PricingExchangeRate"/>
+        <xs:element ref="cac:PaymentExchangeRate"/>
+        <xs:element ref="cac:PaymentAlternativeExchangeRate"/>
+        <xs:element ref="cac:TaxTotal"/>
+        <xs:element ref="cac:WithholdingTaxTotal"/>
+        <xs:element ref="cac:LegalMonetaryTotal"/>
+        <xs:element ref="cac:InvoiceLine"/>
+      </xs:choice>
+    </xs:complexType>
+  </xs:element>
+</xs:schema>
