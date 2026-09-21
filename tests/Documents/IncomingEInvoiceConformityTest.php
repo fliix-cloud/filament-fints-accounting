@@ -69,6 +69,12 @@ class IncomingEInvoiceConformityTest extends TestCase
         $this->assertSame('380', $parsed->invoiceTypeCode);
         $this->assertSame('urn:cen.eu:en16931:2017#compliant#urn:xeinkauf.de:kosit:xrechnung_3.0', $parsed->customizationId);
         $this->assertSame('urn:fdc:peppol.eu:2017:poacc:billing:01:1.0', $parsed->profileId);
+        $this->assertSame('seller@vendor.example', $parsed->sellerElectronicAddress);
+        $this->assertSame('EM', $parsed->sellerElectronicAddressScheme);
+        $this->assertSame('buyer@customer.example', $parsed->buyerElectronicAddress);
+        $this->assertSame('EM', $parsed->buyerElectronicAddressScheme);
+        $this->assertSame('58', $parsed->paymentMeans[0]['type_code']);
+        $this->assertSame('DE89370400440532013000', $parsed->paymentMeans[0]['payee_iban']);
         $this->assertCount(1, $parsed->vatBreakdown);
         $this->assertSame('S', $parsed->vatBreakdown[0]['category']);
         $this->assertSame(1900, $parsed->vatBreakdown[0]['rate_bp']);
@@ -247,6 +253,26 @@ class IncomingEInvoiceConformityTest extends TestCase
         yield 'XRechnung without ProfileID' => [
             'br-xrechnung-missing-profile.xml',
             'BR-DE-2: Business process type (BT-23) is missing for XRechnung',
+        ];
+        yield 'XRechnung missing seller endpoint' => [
+            'br-xrechnung-missing-seller-endpoint.xml',
+            'PEPPOL-EN16931-R020: Seller electronic address (BT-34) is missing',
+        ];
+        yield 'XRechnung missing buyer endpoint' => [
+            'br-xrechnung-missing-buyer-endpoint.xml',
+            'PEPPOL-EN16931-R010: Buyer electronic address (BT-49) is missing',
+        ];
+        yield 'XRechnung endpoint without scheme' => [
+            'br-xrechnung-endpoint-no-scheme.xml',
+            'BR-62: Seller electronic address (BT-34) shall have a scheme identifier',
+        ];
+        yield 'XRechnung missing payment means' => [
+            'br-xrechnung-missing-payment-means.xml',
+            'BR-DE-13: Payment means (BG-16) is missing',
+        ];
+        yield 'XRechnung credit transfer without IBAN' => [
+            'br-xrechnung-payment-58-no-iban.xml',
+            'BR-DE-23: Credit transfer (BG-17) IBAN (BT-84) is missing',
         ];
     }
 

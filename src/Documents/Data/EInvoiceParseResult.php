@@ -10,6 +10,7 @@ final readonly class EInvoiceParseResult
      * @param  list<string>  $warnings
      * @param  array<string, mixed>  $meta
      * @param  list<array{category: string, rate_bp: int|null, taxable_minor: int, tax_minor: int}>  $vatBreakdown
+     * @param  list<array{type_code: string, payee_iban: ?string, debtor_iban: ?string}>  $paymentMeans
      */
     public function __construct(
         public string $formatKey,
@@ -43,5 +44,10 @@ final readonly class EInvoiceParseResult
         public ?string $buyerCity = null,
         public ?string $buyerCountryCode = null,
         public array $vatBreakdown = [],
+        public ?string $sellerElectronicAddress = null,
+        public ?string $sellerElectronicAddressScheme = null,
+        public ?string $buyerElectronicAddress = null,
+        public ?string $buyerElectronicAddressScheme = null,
+        public array $paymentMeans = [],
     ) {}
 }

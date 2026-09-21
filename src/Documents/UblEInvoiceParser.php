@@ -137,6 +137,11 @@ final class UblEInvoiceParser
             buyerCity: $buyer['city'],
             buyerCountryCode: $buyer['country_code'],
             vatBreakdown: $this->parseVatBreakdown($xpath, $currency),
+            sellerElectronicAddress: $seller['electronic_address'],
+            sellerElectronicAddressScheme: $seller['electronic_address_scheme'],
+            buyerElectronicAddress: $buyer['electronic_address'],
+            buyerElectronicAddressScheme: $buyer['electronic_address_scheme'],
+            paymentMeans: $this->parsePaymentMeans($xpath),
         );
     }
 
@@ -326,7 +331,7 @@ final class UblEInvoiceParser
     }
 
     /**
-     * @return array{name: ?string, vat_id: ?string, address_line1: ?string, address_line2: ?string, postal_code: ?string, city: ?string, country_code: ?string, email: ?string}
+     * @return array{name: ?string, vat_id: ?string, address_line1: ?string, address_line2: ?string, postal_code: ?string, city: ?string, country_code: ?string, email: ?string, electronic_address: ?string, electronic_address_scheme: ?string}
      */
     private function parseParty(\DOMXPath $xpath, ?\DOMNode $party): array
     {
@@ -340,8 +345,12 @@ final class UblEInvoiceParser
                 'city' => null,
                 'country_code' => null,
                 'email' => null,
+                'electronic_address' => null,
+                'electronic_address_scheme' => null,
             ];
         }
+
+        $endpoint = $xpath->query(".//*[local-name()='EndpointID']", $party)?->item(0);
 
         return [
             'name' => $this->nullable(
@@ -355,7 +364,31 @@ final class UblEInvoiceParser
             'city' => $this->nullable($this->value($xpath, ".//*[local-name()='PostalAddress']/*[local-name()='CityName']", $party)),
             'country_code' => $this->nullable($this->value($xpath, ".//*[local-name()='PostalAddress']//*[local-name()='IdentificationCode']", $party)),
             'email' => $this->nullable($this->value($xpath, ".//*[local-name()='Contact']/*[local-name()='ElectronicMail']", $party)),
+            'electronic_address' => $endpoint instanceof \DOMNode ? $this->nullable(trim($endpoint->textContent)) : null,
+            'electronic_address_scheme' => $endpoint instanceof \DOMElement
+                ? $this->nullable($endpoint->getAttribute('schemeID'))
+                : null,
         ];
+    }
+
+    /**
+     * @return list<array{type_code: string, payee_iban: ?string, debtor_iban: ?string}>
+     */
+    private function parsePaymentMeans(\DOMXPath $xpath): array
+    {
+        $items = [];
+        foreach ($xpath->query("/*[local-name()='Invoice']/*[local-name()='PaymentMeans']") ?: [] as $node) {
+            $items[] = [
+                'type_code' => $this->value($xpath, "./*[local-name()='PaymentMeansCode']", $node),
+                'payee_iban' => $this->nullable($this->value($xpath, "./*[local-name()='PayeeFinancialAccount']/*[local-name()='ID']", $node)),
+                'debtor_iban' => $this->nullable(
+                    $this->value($xpath, "./*[local-name()='PaymentMandate']/*[local-name()='PayerFinancialAccount']/*[local-name()='ID']", $node)
+                        ?: $this->value($xpath, "./*[local-name()='PayerFinancialAccount']/*[local-name()='ID']", $node),
+                ),
+            ];
+        }
+
+        return $items;
     }
 
     /**

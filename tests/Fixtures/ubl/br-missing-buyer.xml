@@ -9,11 +9,18 @@
   <cbc:InvoiceTypeCode>380</cbc:InvoiceTypeCode>
   <cbc:DocumentCurrencyCode>EUR</cbc:DocumentCurrencyCode>
   <cac:AccountingSupplierParty>
-    <cac:Party>
+    <cac:Party><cbc:EndpointID schemeID="EM">seller@vendor.example</cbc:EndpointID>
       <cac:PartyName><cbc:Name>Vendor GmbH</cbc:Name></cac:PartyName>
       <cac:PartyTaxScheme><cbc:CompanyID>DE999999999</cbc:CompanyID></cac:PartyTaxScheme>
     </cac:Party>
   </cac:AccountingSupplierParty>
+  <cac:PaymentMeans>
+    <cbc:PaymentMeansCode>58</cbc:PaymentMeansCode>
+    <cac:PayeeFinancialAccount>
+      <cbc:ID>DE89370400440532013000</cbc:ID>
+    </cac:PayeeFinancialAccount>
+  </cac:PaymentMeans>
+
   <cac:TaxTotal>
     <cbc:TaxAmount currencyID="EUR">19.00</cbc:TaxAmount>
     <cac:TaxSubtotal>
