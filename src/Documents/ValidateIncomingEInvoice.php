@@ -15,8 +15,8 @@ use horstoeko\zugferd\ZugferdSettings;
  * Fail-closed schema + DE-EUR EN 16931 reception subset for incoming e-invoices.
  *
  * This is a documented subset gate (schema + material BRs including buyer,
- * BG-23, and CIUS identifiers). It is not a full Schematron / XRechnung /
- * ZUGFeRD certification engine.
+ * BG-23, CIUS identifiers, XRechnung electronic addresses, and payment means).
+ * It is not a full Schematron / XRechnung / ZUGFeRD certification engine.
  */
 final class ValidateIncomingEInvoice
 {
@@ -41,6 +41,15 @@ final class ValidateIncomingEInvoice
     private const EN16931_SPEC = 'urn:cen.eu:en16931:2017';
 
     private const PEPPOL_BILLING_PROCESS = 'urn:fdc:peppol.eu:2017:poacc:billing:01:1.0';
+
+    /** @var list<string> */
+    private const XR_PAYMENT_MEANS_CODES = ['30', '48', '49', '54', '57', '58', '59'];
+
+    /** @var list<string> */
+    private const CREDIT_TRANSFER_CODES = ['30', '58'];
+
+    /** @var list<string> */
+    private const DIRECT_DEBIT_CODES = ['49', '59'];
 
     public function __construct(
         private readonly MapImportedEInvoiceTax $taxMapping,
@@ -81,6 +90,8 @@ final class ValidateIncomingEInvoice
         $this->assertInvoiceTypeCode($parsed->invoiceTypeCode);
         $this->assertBuyer($parsed);
         $this->assertSpecification($parsed->customizationId, $parsed->profileId);
+        $this->assertElectronicAddresses($parsed);
+        $this->assertXrechnungPaymentMeans($parsed);
 
         $sumLineNets = 0;
         $computedTax = 0;
@@ -202,6 +213,74 @@ final class ValidateIncomingEInvoice
     private function isXrechnung(?string $customizationId): bool
     {
         return str_contains(strtolower((string) $customizationId), 'xrechnung');
+    }
+
+    private function requiresElectronicAddresses(?string $customizationId): bool
+    {
+        $spec = strtolower((string) $customizationId);
+
+        return $this->isXrechnung($spec)
+            || str_contains($spec, 'urn:fdc:peppol.eu:2017:poacc:billing:3.0');
+    }
+
+    private function assertElectronicAddresses(EInvoiceParseResult $parsed): void
+    {
+        if (! $this->requiresElectronicAddresses($parsed->customizationId)) {
+            return;
+        }
+
+        $this->assertElectronicAddress(
+            'PEPPOL-EN16931-R020',
+            'Seller electronic address (BT-34)',
+            $parsed->sellerElectronicAddress,
+            $parsed->sellerElectronicAddressScheme,
+        );
+        $this->assertElectronicAddress(
+            'PEPPOL-EN16931-R010',
+            'Buyer electronic address (BT-49)',
+            $parsed->buyerElectronicAddress,
+            $parsed->buyerElectronicAddressScheme,
+        );
+    }
+
+    private function assertElectronicAddress(string $rule, string $label, ?string $value, ?string $scheme): void
+    {
+        if (! filled($value)) {
+            throw $this->businessRule($rule, $label.' is missing');
+        }
+        if (! filled($scheme)) {
+            throw $this->businessRule('BR-62', $label.' shall have a scheme identifier');
+        }
+    }
+
+    private function assertXrechnungPaymentMeans(EInvoiceParseResult $parsed): void
+    {
+        if (! $this->isXrechnung($parsed->customizationId)) {
+            return;
+        }
+
+        if ($parsed->paymentMeans === []) {
+            throw $this->businessRule('BR-DE-13', 'Payment means (BG-16) is missing');
+        }
+
+        foreach ($parsed->paymentMeans as $means) {
+            $code = trim($means['type_code']);
+            if ($code === '') {
+                throw $this->businessRule('BR-DE-13', 'Payment means type code (BT-81) is missing');
+            }
+            if (! in_array($code, self::XR_PAYMENT_MEANS_CODES, true)) {
+                throw $this->businessRule(
+                    'BR-DE-13',
+                    'Payment means type code (BT-81) is not an accepted XRechnung code',
+                );
+            }
+            if (in_array($code, self::CREDIT_TRANSFER_CODES, true) && ! filled($means['payee_iban'])) {
+                throw $this->businessRule('BR-DE-23', 'Credit transfer (BG-17) IBAN (BT-84) is missing');
+            }
+            if (in_array($code, self::DIRECT_DEBIT_CODES, true) && ! filled($means['debtor_iban'])) {
+                throw $this->businessRule('BR-DE-25', 'Direct debit (BG-19) IBAN (BT-91) is missing');
+            }
+        }
     }
 
     private function assertVatBreakdown(EInvoiceParseResult $parsed): void

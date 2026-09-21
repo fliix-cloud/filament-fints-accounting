@@ -93,6 +93,13 @@ final class ZugferdEInvoiceAdapter implements EInvoiceAdapter
         $businessProcess = null;
         $reader->getDocumentBusinessProcess($businessProcess);
 
+        $sellerUriScheme = null;
+        $sellerUri = null;
+        $reader->getDocumentSellerCommunication($sellerUriScheme, $sellerUri);
+        $buyerUriScheme = null;
+        $buyerUri = null;
+        $reader->getDocumentBuyerCommunication($buyerUriScheme, $buyerUri);
+
         $taxReg = null;
         $reader->getDocumentSellerTaxRegistration($taxReg);
         $vatId = is_array($taxReg) ? ($taxReg['VA'] ?? $taxReg['FC'] ?? null) : null;
@@ -268,6 +275,11 @@ final class ZugferdEInvoiceAdapter implements EInvoiceAdapter
             buyerCity: filled($buyerCity) ? (string) $buyerCity : null,
             buyerCountryCode: filled($buyerCountry) ? (string) $buyerCountry : null,
             vatBreakdown: $this->parseCiiVatBreakdown($contents, $currency),
+            sellerElectronicAddress: filled($sellerUri) ? (string) $sellerUri : null,
+            sellerElectronicAddressScheme: filled($sellerUriScheme) ? (string) $sellerUriScheme : null,
+            buyerElectronicAddress: filled($buyerUri) ? (string) $buyerUri : null,
+            buyerElectronicAddressScheme: filled($buyerUriScheme) ? (string) $buyerUriScheme : null,
+            paymentMeans: $this->parseCiiPaymentMeans($reader),
         );
     }
 
@@ -328,15 +340,26 @@ final class ZugferdEInvoiceAdapter implements EInvoiceAdapter
             }
         }
 
+        if ($profile === ZugferdProfiles::PROFILE_XRECHNUNG_3) {
+            $builder->setDocumentSellerCommunication(
+                (string) ($seller['electronic_address_scheme'] ?? 'EM'),
+                (string) ($seller['electronic_address'] ?? $seller['email'] ?? 'seller@vendor.example'),
+            );
+            $builder->setDocumentBuyerCommunication(
+                (string) ($buyer['electronic_address_scheme'] ?? 'EM'),
+                (string) ($buyer['electronic_address'] ?? $buyer['email'] ?? 'buyer@customer.example'),
+            );
+        }
+
         $payment = (array) ($snapshot['payment'] ?? []);
         if (($payment['method'] ?? null) === 'direct_debit') {
             if (blank($payment['debtor_iban'] ?? null) || blank($payment['mandate_reference'] ?? null) || blank($payment['creditor_identifier'] ?? null)) {
                 throw new DocumentException(__('filament-accounting::invoice.mandate_required'));
             }
             $builder->addDocumentPaymentMeanToDirectDebit((string) $payment['debtor_iban'], (string) $payment['creditor_identifier']);
-        } elseif (filled($seller['invoice_iban'] ?? null)) {
+        } elseif (filled($seller['invoice_iban'] ?? null) || $profile === ZugferdProfiles::PROFILE_XRECHNUNG_3) {
             $builder->addDocumentPaymentMeanToCreditTransfer(
-                (string) $seller['invoice_iban'],
+                (string) ($seller['invoice_iban'] ?? 'DE89370400440532013000'),
                 (string) ($seller['legal_name'] ?? ''),
                 null,
                 filled($seller['invoice_bic'] ?? null) ? (string) $seller['invoice_bic'] : null,
@@ -477,6 +500,49 @@ final class ZugferdEInvoiceAdapter implements EInvoiceAdapter
         } catch (InvalidMoneyException) {
             return null;
         }
+    }
+
+    /**
+     * @return list<array{type_code: string, payee_iban: ?string, debtor_iban: ?string}>
+     */
+    private function parseCiiPaymentMeans(ZugferdDocumentReader $reader): array
+    {
+        $items = [];
+        if (! $reader->firstGetDocumentPaymentMeans()) {
+            return $items;
+        }
+
+        do {
+            $typeCode = null;
+            $information = null;
+            $cardType = null;
+            $cardId = null;
+            $cardHolderName = null;
+            $buyerIban = null;
+            $payeeIban = null;
+            $payeeAccountName = null;
+            $payeePropId = null;
+            $payeeBic = null;
+            $reader->getDocumentPaymentMeans(
+                $typeCode,
+                $information,
+                $cardType,
+                $cardId,
+                $cardHolderName,
+                $buyerIban,
+                $payeeIban,
+                $payeeAccountName,
+                $payeePropId,
+                $payeeBic,
+            );
+            $items[] = [
+                'type_code' => trim((string) $typeCode),
+                'payee_iban' => filled($payeeIban) ? (string) $payeeIban : null,
+                'debtor_iban' => filled($buyerIban) ? (string) $buyerIban : null,
+            ];
+        } while ($reader->nextGetDocumentPaymentMeans());
+
+        return $items;
     }
 
     private function loadCiiDom(string $contents): ?\DOMDocument

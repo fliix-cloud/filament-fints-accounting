@@ -10,7 +10,7 @@
   <cbc:InvoiceTypeCode>380</cbc:InvoiceTypeCode>
   <cbc:DocumentCurrencyCode>EUR</cbc:DocumentCurrencyCode>
   <cac:AccountingSupplierParty>
-    <cac:Party>
+    <cac:Party><cbc:EndpointID schemeID="EM">seller@vendor.example</cbc:EndpointID>
       <cac:PartyName><cbc:Name>Vendor GmbH</cbc:Name></cac:PartyName>
       <cac:PostalAddress>
         <cbc:StreetName>Musterweg 1</cbc:StreetName>
@@ -22,7 +22,7 @@
     </cac:Party>
   </cac:AccountingSupplierParty>
   <cac:AccountingCustomerParty>
-    <cac:Party>
+    <cac:Party><cbc:EndpointID schemeID="EM">buyer@customer.example</cbc:EndpointID>
       <cac:PartyName><cbc:Name>Buyer GmbH</cbc:Name></cac:PartyName>
       <cac:PostalAddress>
         <cbc:StreetName>Kundenstr. 2</cbc:StreetName>
@@ -32,6 +32,13 @@
       </cac:PostalAddress>
     </cac:Party>
   </cac:AccountingCustomerParty>
+  <cac:PaymentMeans>
+    <cbc:PaymentMeansCode>58</cbc:PaymentMeansCode>
+    <cac:PayeeFinancialAccount>
+      <cbc:ID>DE89370400440532013000</cbc:ID>
+    </cac:PayeeFinancialAccount>
+  </cac:PaymentMeans>
+
   <cac:TaxTotal>
     <cbc:TaxAmount currencyID="EUR">19.00</cbc:TaxAmount>
     <cac:TaxSubtotal>

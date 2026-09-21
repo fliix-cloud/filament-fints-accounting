@@ -4,18 +4,20 @@
  xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2">
   <cbc:CustomizationID>urn:cen.eu:en16931:2017#compliant#urn:xeinkauf.de:kosit:xrechnung_3.0</cbc:CustomizationID>
   <cbc:ProfileID>urn:fdc:peppol.eu:2017:poacc:billing:01:1.0</cbc:ProfileID>
-  <cbc:ID>TAX-E-0</cbc:ID>
+  <cbc:ID>BG-16-MISSING</cbc:ID>
   <cbc:IssueDate>2026-03-10</cbc:IssueDate>
   <cbc:InvoiceTypeCode>380</cbc:InvoiceTypeCode>
   <cbc:DocumentCurrencyCode>EUR</cbc:DocumentCurrencyCode>
   <cac:AccountingSupplierParty>
-    <cac:Party><cbc:EndpointID schemeID="EM">seller@vendor.example</cbc:EndpointID>
+    <cac:Party>
+      <cbc:EndpointID schemeID="EM">seller@vendor.example</cbc:EndpointID>
       <cac:PartyName><cbc:Name>Vendor GmbH</cbc:Name></cac:PartyName>
       <cac:PartyTaxScheme><cbc:CompanyID>DE999999999</cbc:CompanyID></cac:PartyTaxScheme>
     </cac:Party>
   </cac:AccountingSupplierParty>
   <cac:AccountingCustomerParty>
-    <cac:Party><cbc:EndpointID schemeID="EM">buyer@customer.example</cbc:EndpointID>
+    <cac:Party>
+      <cbc:EndpointID schemeID="EM">buyer@customer.example</cbc:EndpointID>
       <cac:PartyName><cbc:Name>Buyer GmbH</cbc:Name></cac:PartyName>
       <cac:PostalAddress>
         <cbc:StreetName>Kundenstr. 2</cbc:StreetName>
@@ -25,28 +27,21 @@
       </cac:PostalAddress>
     </cac:Party>
   </cac:AccountingCustomerParty>
-  <cac:PaymentMeans>
-    <cbc:PaymentMeansCode>58</cbc:PaymentMeansCode>
-    <cac:PayeeFinancialAccount>
-      <cbc:ID>DE89370400440532013000</cbc:ID>
-    </cac:PayeeFinancialAccount>
-  </cac:PaymentMeans>
-
   <cac:TaxTotal>
-    <cbc:TaxAmount currencyID="EUR">0.00</cbc:TaxAmount>
+    <cbc:TaxAmount currencyID="EUR">19.00</cbc:TaxAmount>
     <cac:TaxSubtotal>
       <cbc:TaxableAmount currencyID="EUR">100.00</cbc:TaxableAmount>
-      <cbc:TaxAmount currencyID="EUR">0.00</cbc:TaxAmount>
+      <cbc:TaxAmount currencyID="EUR">19.00</cbc:TaxAmount>
       <cac:TaxCategory>
-        <cbc:ID>E</cbc:ID>
-        <cbc:Percent>0</cbc:Percent>
+        <cbc:ID>S</cbc:ID>
+        <cbc:Percent>19</cbc:Percent>
       </cac:TaxCategory>
     </cac:TaxSubtotal>
   </cac:TaxTotal>
   <cac:LegalMonetaryTotal>
     <cbc:LineExtensionAmount currencyID="EUR">100.00</cbc:LineExtensionAmount>
     <cbc:TaxExclusiveAmount currencyID="EUR">100.00</cbc:TaxExclusiveAmount>
-    <cbc:TaxInclusiveAmount currencyID="EUR">100.00</cbc:TaxInclusiveAmount>
+    <cbc:TaxInclusiveAmount currencyID="EUR">119.00</cbc:TaxInclusiveAmount>
   </cac:LegalMonetaryTotal>
   <cac:InvoiceLine>
     <cbc:ID>1</cbc:ID>
@@ -55,8 +50,8 @@
     <cac:Item>
       <cbc:Name>Item</cbc:Name>
       <cac:ClassifiedTaxCategory>
-        <cbc:ID>E</cbc:ID>
-        <cbc:Percent>0</cbc:Percent>
+        <cbc:ID>S</cbc:ID>
+        <cbc:Percent>19</cbc:Percent>
       </cac:ClassifiedTaxCategory>
     </cac:Item>
     <cac:Price><cbc:PriceAmount currencyID="EUR">100.00</cbc:PriceAmount></cac:Price>
