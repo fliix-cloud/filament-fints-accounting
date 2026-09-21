@@ -7,6 +7,7 @@ use FilamentAccounting\Contracts\AccountingAuthorizer;
 use FilamentAccounting\Documents\Data\EInvoiceParseResult;
 use FilamentAccounting\Documents\Data\PurchaseInvoiceUploadResult;
 use FilamentAccounting\Documents\UblEInvoiceParser;
+use FilamentAccounting\Documents\ValidateIncomingEInvoice;
 use FilamentAccounting\Documents\ZugferdEInvoiceAdapter;
 use FilamentAccounting\Enums\PartyAddressRole;
 use FilamentAccounting\Exceptions\DocumentException;
@@ -27,6 +28,7 @@ final class ImportPurchaseInvoice
     public function __construct(
         private readonly ZugferdEInvoiceAdapter $cii,
         private readonly UblEInvoiceParser $ubl,
+        private readonly ValidateIncomingEInvoice $conformity,
         private readonly RegisterPurchaseInvoice $invoices,
         private readonly StoreAttachment $attachments,
         private readonly VerifyPurchaseInvoiceOriginals $originals,
@@ -166,9 +168,9 @@ final class ImportPurchaseInvoice
         $meta = [
             'structured' => $parsed instanceof EInvoiceParseResult,
             'format' => $format,
-            'validated' => false,
+            'validated' => $parsed instanceof EInvoiceParseResult,
             'extracted' => $parsed instanceof EInvoiceParseResult,
-            'validation_status' => 'not_checked',
+            'validation_status' => $parsed instanceof EInvoiceParseResult ? 'de_eur_subset_passed' : 'not_checked',
             'intake_id' => $intake->getKey(),
             'original_format' => strtolower((string) pathinfo($filename, PATHINFO_EXTENSION)),
             'supplier_match' => $match,
@@ -257,17 +259,25 @@ final class ImportPurchaseInvoice
         if (stripos($contents, '<!DOCTYPE') !== false) {
             throw new DocumentException(__('filament-accounting::errors.unsafe_xml'));
         }
-        $parsed = match (true) {
-            $this->cii->supports('application/xml', $contents) => $this->cii->parse($contents, $filename),
-            $this->ubl->supports($contents) => $this->ubl->parse($contents, $filename),
+        $formatKey = match (true) {
+            $this->cii->supports('application/xml', $contents) => 'zugferd',
+            $this->ubl->supports($contents) => 'ubl',
             default => null,
         };
-        if (! $parsed instanceof EInvoiceParseResult) {
+        if ($formatKey === null) {
             throw new DocumentException(__('filament-accounting::errors.invalid_e_invoice'));
         }
+
+        $this->conformity->assertSchema($contents, $formatKey);
+
+        $parsed = $formatKey === 'zugferd'
+            ? $this->cii->parse($contents, $filename)
+            : $this->ubl->parse($contents, $filename);
         if (! $parsed->valid) {
             throw new DocumentException(implode('; ', $parsed->errors));
         }
+
+        $this->conformity->assertBusinessRules($parsed);
 
         return $parsed;
     }

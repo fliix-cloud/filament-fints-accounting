@@ -1,0 +1,268 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2"
+           xmlns:cac="urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2"
+           targetNamespace="urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2"
+           elementFormDefault="qualified"
+           attributeFormDefault="unqualified">
+  <xs:import namespace="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2"
+             schemaLocation="CommonBasicComponents-Subset.xsd"/>
+
+  <xs:complexType name="OpenAggregateType">
+    <xs:sequence>
+      <xs:any namespace="##any" processContents="skip" minOccurs="0" maxOccurs="unbounded"/>
+    </xs:sequence>
+    <xs:anyAttribute processContents="skip"/>
+  </xs:complexType>
+
+  <xs:element name="Country">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element ref="cbc:IdentificationCode" minOccurs="0"/>
+        <xs:element ref="cbc:Name" minOccurs="0"/>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:element name="PostalAddress">
+    <xs:complexType>
+      <xs:choice minOccurs="0" maxOccurs="unbounded">
+        <xs:element ref="cbc:StreetName"/>
+        <xs:element ref="cbc:AdditionalStreetName"/>
+        <xs:element ref="cbc:CityName"/>
+        <xs:element ref="cbc:PostalZone"/>
+        <xs:element ref="cbc:CountrySubentity"/>
+        <xs:element ref="cac:Country"/>
+      </xs:choice>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:element name="Contact">
+    <xs:complexType>
+      <xs:choice minOccurs="0" maxOccurs="unbounded">
+        <xs:element ref="cbc:Name"/>
+        <xs:element ref="cbc:Telephone"/>
+        <xs:element ref="cbc:ElectronicMail"/>
+      </xs:choice>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:element name="PartyName">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element ref="cbc:Name"/>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:element name="PartyLegalEntity">
+    <xs:complexType>
+      <xs:choice minOccurs="0" maxOccurs="unbounded">
+        <xs:element ref="cbc:RegistrationName"/>
+        <xs:element ref="cbc:CompanyID"/>
+        <xs:element ref="cbc:CompanyLegalForm"/>
+      </xs:choice>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:element name="TaxScheme">
+    <xs:complexType>
+      <xs:choice minOccurs="0" maxOccurs="unbounded">
+        <xs:element ref="cbc:ID"/>
+        <xs:element ref="cbc:Name"/>
+      </xs:choice>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:element name="PartyTaxScheme">
+    <xs:complexType>
+      <xs:choice minOccurs="0" maxOccurs="unbounded">
+        <xs:element ref="cbc:CompanyID"/>
+        <xs:element ref="cac:TaxScheme"/>
+      </xs:choice>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:element name="PartyIdentification">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element ref="cbc:ID"/>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:element name="Party">
+    <xs:complexType>
+      <xs:choice minOccurs="0" maxOccurs="unbounded">
+        <xs:element ref="cbc:EndpointID"/>
+        <xs:element ref="cac:PartyIdentification"/>
+        <xs:element ref="cac:PartyName"/>
+        <xs:element ref="cac:PostalAddress"/>
+        <xs:element ref="cac:PartyTaxScheme"/>
+        <xs:element ref="cac:PartyLegalEntity"/>
+        <xs:element ref="cac:Contact"/>
+      </xs:choice>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:element name="AccountingSupplierParty">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element ref="cac:Party"/>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:element name="AccountingCustomerParty">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element ref="cac:Party"/>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:element name="ClassifiedTaxCategory">
+    <xs:complexType>
+      <xs:choice minOccurs="0" maxOccurs="unbounded">
+        <xs:element ref="cbc:ID"/>
+        <xs:element ref="cbc:Percent"/>
+        <xs:element ref="cbc:Name"/>
+        <xs:element ref="cac:TaxScheme"/>
+      </xs:choice>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:element name="Item">
+    <xs:complexType>
+      <xs:choice minOccurs="0" maxOccurs="unbounded">
+        <xs:element ref="cbc:Description"/>
+        <xs:element ref="cbc:Name"/>
+        <xs:element ref="cac:BuyersItemIdentification"/>
+        <xs:element ref="cac:SellersItemIdentification"/>
+        <xs:element ref="cac:StandardItemIdentification"/>
+        <xs:element ref="cac:CommodityClassification"/>
+        <xs:element ref="cac:ClassifiedTaxCategory"/>
+        <xs:element ref="cac:AdditionalItemProperty"/>
+      </xs:choice>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:element name="BuyersItemIdentification" type="cac:OpenAggregateType"/>
+  <xs:element name="SellersItemIdentification" type="cac:OpenAggregateType"/>
+  <xs:element name="StandardItemIdentification" type="cac:OpenAggregateType"/>
+  <xs:element name="CommodityClassification" type="cac:OpenAggregateType"/>
+  <xs:element name="AdditionalItemProperty" type="cac:OpenAggregateType"/>
+
+  <xs:element name="Price">
+    <xs:complexType>
+      <xs:choice minOccurs="0" maxOccurs="unbounded">
+        <xs:element ref="cbc:PriceAmount"/>
+        <xs:element ref="cbc:BaseQuantity"/>
+        <xs:element ref="cac:AllowanceCharge"/>
+      </xs:choice>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:element name="AllowanceCharge">
+    <xs:complexType>
+      <xs:choice minOccurs="0" maxOccurs="unbounded">
+        <xs:element ref="cbc:ChargeIndicator"/>
+        <xs:element ref="cbc:AllowanceChargeReasonCode"/>
+        <xs:element ref="cbc:AllowanceChargeReason"/>
+        <xs:element ref="cbc:MultiplierFactorNumeric"/>
+        <xs:element ref="cbc:Amount"/>
+        <xs:element ref="cbc:BaseAmount"/>
+        <xs:element ref="cac:TaxCategory"/>
+      </xs:choice>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:element name="TaxCategory">
+    <xs:complexType>
+      <xs:choice minOccurs="0" maxOccurs="unbounded">
+        <xs:element ref="cbc:ID"/>
+        <xs:element ref="cbc:Percent"/>
+        <xs:element ref="cac:TaxScheme"/>
+      </xs:choice>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:element name="TaxSubtotal">
+    <xs:complexType>
+      <xs:choice minOccurs="0" maxOccurs="unbounded">
+        <xs:element ref="cbc:TaxableAmount"/>
+        <xs:element ref="cbc:TaxAmount"/>
+        <xs:element ref="cac:TaxCategory"/>
+      </xs:choice>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:element name="TaxTotal">
+    <xs:complexType>
+      <xs:choice minOccurs="0" maxOccurs="unbounded">
+        <xs:element ref="cbc:TaxAmount"/>
+        <xs:element ref="cac:TaxSubtotal"/>
+      </xs:choice>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:element name="LegalMonetaryTotal">
+    <xs:complexType>
+      <xs:choice minOccurs="0" maxOccurs="unbounded">
+        <xs:element ref="cbc:LineExtensionAmount"/>
+        <xs:element ref="cbc:TaxExclusiveAmount"/>
+        <xs:element ref="cbc:TaxInclusiveAmount"/>
+        <xs:element ref="cbc:AllowanceTotalAmount"/>
+        <xs:element ref="cbc:ChargeTotalAmount"/>
+        <xs:element ref="cbc:PrepaidAmount"/>
+        <xs:element ref="cbc:PayableRoundingAmount"/>
+        <xs:element ref="cbc:PayableAmount"/>
+      </xs:choice>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:element name="InvoiceLine">
+    <xs:complexType>
+      <xs:choice minOccurs="0" maxOccurs="unbounded">
+        <xs:element ref="cbc:ID"/>
+        <xs:element ref="cbc:Note"/>
+        <xs:element ref="cbc:InvoicedQuantity"/>
+        <xs:element ref="cbc:LineExtensionAmount"/>
+        <xs:element ref="cbc:AccountingCost"/>
+        <xs:element ref="cac:InvoicePeriod"/>
+        <xs:element ref="cac:OrderLineReference"/>
+        <xs:element ref="cac:DocumentReference"/>
+        <xs:element ref="cac:AllowanceCharge"/>
+        <xs:element ref="cac:Item"/>
+        <xs:element ref="cac:Price"/>
+      </xs:choice>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:element name="InvoicePeriod" type="cac:OpenAggregateType"/>
+  <xs:element name="OrderReference" type="cac:OpenAggregateType"/>
+  <xs:element name="OrderLineReference" type="cac:OpenAggregateType"/>
+  <xs:element name="BillingReference" type="cac:OpenAggregateType"/>
+  <xs:element name="DespatchDocumentReference" type="cac:OpenAggregateType"/>
+  <xs:element name="ReceiptDocumentReference" type="cac:OpenAggregateType"/>
+  <xs:element name="StatementDocumentReference" type="cac:OpenAggregateType"/>
+  <xs:element name="OriginatorDocumentReference" type="cac:OpenAggregateType"/>
+  <xs:element name="ContractDocumentReference" type="cac:OpenAggregateType"/>
+  <xs:element name="AdditionalDocumentReference" type="cac:OpenAggregateType"/>
+  <xs:element name="ProjectReference" type="cac:OpenAggregateType"/>
+  <xs:element name="DocumentReference" type="cac:OpenAggregateType"/>
+  <xs:element name="PayeeParty" type="cac:OpenAggregateType"/>
+  <xs:element name="BuyerCustomerParty" type="cac:OpenAggregateType"/>
+  <xs:element name="SellerSupplierParty" type="cac:OpenAggregateType"/>
+  <xs:element name="TaxRepresentativeParty" type="cac:OpenAggregateType"/>
+  <xs:element name="Delivery" type="cac:OpenAggregateType"/>
+  <xs:element name="DeliveryTerms" type="cac:OpenAggregateType"/>
+  <xs:element name="PaymentMeans" type="cac:OpenAggregateType"/>
+  <xs:element name="PaymentTerms" type="cac:OpenAggregateType"/>
+  <xs:element name="PrepaidPayment" type="cac:OpenAggregateType"/>
+  <xs:element name="TaxExchangeRate" type="cac:OpenAggregateType"/>
+  <xs:element name="PricingExchangeRate" type="cac:OpenAggregateType"/>
+  <xs:element name="PaymentExchangeRate" type="cac:OpenAggregateType"/>
+  <xs:element name="PaymentAlternativeExchangeRate" type="cac:OpenAggregateType"/>
+  <xs:element name="WithholdingTaxTotal" type="cac:OpenAggregateType"/>
+</xs:schema>

@@ -32,14 +32,14 @@ retention, procedures, and change documentation — not software alone.
 | Converted purchase-line binding | Intake-backed lines already carry `source_line_hash`; registration now **fails closed** if a `source_line_index` is present without its hash | Manual drafts without import metadata remain unbound by design |
 | F12 banking completeness controls | Catch-up drain, pending→booked promotion, balance evidence on sync runs, backlog inventory / ack, concurrent+SCA fail-closed resume | Green sync ≠ completeness while catch-up remains |
 | F6 core EUR paths | Exact money, discounts, credit notes, foreign currency rejected | Remaining edge cases → tax/accounting review (host) |
-| F7 subset (not full conformity) | AllowanceCharge supported subset; DE EUR EN 16931 category/rate mapping fail-closed | Full schema / BR validation deferred (below) |
+| F7 subset (not full conformity) | AllowanceCharge supported subset; DE EUR EN 16931 category/rate mapping fail-closed; incoming schema + material BR gate | Full Schematron / certification deferred (below) |
 | Audit chain / invoice evidence / anchors / dataset export | SHA-256 chain, journal snapshots, intake+artifact verification, external anchors, scoped dataset | Dataset ≠ host backup |
 
 ### DEFERRED (package) — with reason
 
 | Item | Reason |
 | --- | --- |
-| **F7 schema / full EN 16931 business rules** | Separate from GoBD bookkeeping controls. Package supports a documented e-invoice **subset** (AllowanceCharge shapes that reconcile into line nets; DE EUR tax categories/rates including temporary COVID rates). Full XSD/Schematron and complete BR coverage would be a large e-invoice conformity track — do not boil the ocean inside GoBD close-out. Unsupported or mismatching input must remain preserved and visible, not booked. |
+| **F7 full EN 16931 Schematron / certification** | Incoming intake now runs a documented **subset** schema + material BR gate (below). Full CEN Schematron, KoSIT/XRechnung certification, and a complete BR engine remain a separate e-invoice conformity track. Unsupported or mismatching input must remain preserved and visible, not booked. |
 | Exhaustive ORM/SQL/storage privilege proof | Package Gates cannot stop privileged DB/storage admins; residual is host | 
 | Complete master-data historical-change archive for every catalog/party edit | Connection-consistency controls exist; full change-evidence productization deferred | 
 | Foreign-currency bookkeeping | Explicitly unsupported | 
@@ -59,15 +59,29 @@ See [Operations](operations.md) for commands and trust boundaries.
 
 ## F7 supported-subset boundary (e-invoice, not GoBD close)
 
+Incoming structured XML is checked **before** a purchase document is created.
+Failures keep the intake evidence (`blocked`) and do not invent postable amounts.
+This is **not** a claim of full EN 16931, XRechnung, or ZUGFeRD certification.
+
 **In scope for the package today:**
 
-- Detect UBL/CII line- and document-level AllowanceCharge; import shapes whose nets already reconcile into line totals; fail closed otherwise while keeping intake evidence.
-- Map EN 16931 / UNTDID 5305 category + rate onto `DE-19`, `DE-7`, `DE-0`, `DE-RC`, `DE-IG-ACQ`, `DE-EXPORT` (plus temporary 16%/5%); unknown/inconsistent pairs fail closed; foreign VAT rejected.
-- Local XML/PDF checks and ZUGFeRD generation helpers.
+- XML Schema on original bytes for the profiles the package imports:
+  - UBL Invoice: package subset schema (`resources/e-invoice/schema/ubl/`) type-checking identifiers, dates, amounts, seller, lines, tax, and allowance/charge, plus required-element presence. This is not the full OASIS UBL 2.1 XSD.
+  - CII / Factur-X: guessed profile XSD from `horstoeko/zugferd` (EN 16931 / XRechnung CII / BASIC / …) against the original XML.
+- EN 16931 business rules that are material for the DE-EUR subset:
+  - Pflichtfelder: BR-02 number, BR-03 issue date, BR-05 currency, BR-08 seller name, BR-16 at least one line.
+  - Currency must be EUR (package scope).
+  - Totals: BR-CO-10 (Σ line nets = TaxExclusiveAmount), BR-CO-15 (exclusive + VAT = inclusive), BR-CO-17 (VAT amount = Σ line VAT from category rates).
+  - Tax category/rate mapping onto `DE-19`, `DE-7`, `DE-0`, `DE-RC`, `DE-IG-ACQ`, `DE-EXPORT` (plus temporary 16%/5%); unknown or inconsistent pairs fail closed; foreign VAT rejected.
+- AllowanceCharge: detect UBL/CII line- and document-level charges; import shapes whose nets already reconcile into line totals; fail closed otherwise while keeping intake evidence.
+- Local XML/PDF checks and ZUGFeRD generation helpers (outbound generation still uses horstoeko XSD + object validators).
+
+A successful import records `e_invoice_meta.validation_status = de_eur_subset_passed`. That status means the subset gate passed, not that the file is certified EN 16931.
 
 **Out of scope / deferred:**
 
-- Full EN 16931 Schematron / complete business-rule engines.
+- Full EN 16931 Schematron / complete business-rule engines (BR-01 CustomizationID, BR-04 type code, buyer postal address, VAT breakdown BG-23, payment means, Peppol/XRechnung CIUS, …).
+- Full OASIS UBL 2.1 XSD (TaxScheme, PayableAmount, AccountingCustomerParty, and other official-required nodes that the current import subset does not demand).
 - Allowance/charge shapes outside the supported subset.
 - Claiming XRechnung or ZUGFeRD certification.
 

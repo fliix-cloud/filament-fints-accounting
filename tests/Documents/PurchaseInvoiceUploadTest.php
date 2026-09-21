@@ -591,7 +591,8 @@ class PurchaseInvoiceUploadTest extends TestCase
         $this->assertTrue($result->structured);
         $this->assertSame('ubl', $result->format);
         $this->assertSame(11900, $result->document->gross_minor);
-        $this->assertFalse($result->document->e_invoice_meta['validated']);
+        $this->assertTrue($result->document->e_invoice_meta['validated']);
+        $this->assertSame('de_eur_subset_passed', $result->document->e_invoice_meta['validation_status']);
         $this->assertTrue($result->document->e_invoice_meta['extracted']);
         $this->assertCount(1, $result->document->attachments);
         $this->assertSame($this->ublInvoice(), app(ReadAttachment::class)->handle($result->document->attachments->sole()));
