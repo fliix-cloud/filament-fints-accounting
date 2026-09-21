@@ -86,6 +86,7 @@ final class UblEInvoiceParser
         $invoiceTypeCode = $this->nullable($this->value($xpath, "/*[local-name()='Invoice']/*[local-name()='InvoiceTypeCode']"));
         $customizationId = $this->nullable($this->value($xpath, "/*[local-name()='Invoice']/*[local-name()='CustomizationID']"));
         $profileId = $this->nullable($this->value($xpath, "/*[local-name()='Invoice']/*[local-name()='ProfileID']"));
+        $buyerReference = $this->nullable($this->value($xpath, "/*[local-name()='Invoice']/*[local-name()='BuyerReference']"));
         $supplier = $xpath->query("/*[local-name()='Invoice']/*[local-name()='AccountingSupplierParty']")?->item(0);
         $seller = $this->parseParty($xpath, $supplier);
         $customer = $xpath->query("/*[local-name()='Invoice']/*[local-name()='AccountingCustomerParty']")?->item(0);
@@ -142,6 +143,10 @@ final class UblEInvoiceParser
             buyerElectronicAddress: $buyer['electronic_address'],
             buyerElectronicAddressScheme: $buyer['electronic_address_scheme'],
             paymentMeans: $this->parsePaymentMeans($xpath),
+            buyerReference: $buyerReference,
+            sellerContactName: $seller['contact_name'],
+            sellerContactPhone: $seller['contact_phone'],
+            sellerContactEmail: $seller['contact_email'] ?? $seller['email'],
         );
     }
 
@@ -331,7 +336,7 @@ final class UblEInvoiceParser
     }
 
     /**
-     * @return array{name: ?string, vat_id: ?string, address_line1: ?string, address_line2: ?string, postal_code: ?string, city: ?string, country_code: ?string, email: ?string, electronic_address: ?string, electronic_address_scheme: ?string}
+     * @return array{name: ?string, vat_id: ?string, address_line1: ?string, address_line2: ?string, postal_code: ?string, city: ?string, country_code: ?string, email: ?string, electronic_address: ?string, electronic_address_scheme: ?string, contact_name: ?string, contact_phone: ?string, contact_email: ?string}
      */
     private function parseParty(\DOMXPath $xpath, ?\DOMNode $party): array
     {
@@ -347,10 +352,14 @@ final class UblEInvoiceParser
                 'email' => null,
                 'electronic_address' => null,
                 'electronic_address_scheme' => null,
+                'contact_name' => null,
+                'contact_phone' => null,
+                'contact_email' => null,
             ];
         }
 
         $endpoint = $xpath->query(".//*[local-name()='EndpointID']", $party)?->item(0);
+        $contactEmail = $this->nullable($this->value($xpath, ".//*[local-name()='Contact']/*[local-name()='ElectronicMail']", $party));
 
         return [
             'name' => $this->nullable(
@@ -363,11 +372,14 @@ final class UblEInvoiceParser
             'postal_code' => $this->nullable($this->value($xpath, ".//*[local-name()='PostalAddress']/*[local-name()='PostalZone']", $party)),
             'city' => $this->nullable($this->value($xpath, ".//*[local-name()='PostalAddress']/*[local-name()='CityName']", $party)),
             'country_code' => $this->nullable($this->value($xpath, ".//*[local-name()='PostalAddress']//*[local-name()='IdentificationCode']", $party)),
-            'email' => $this->nullable($this->value($xpath, ".//*[local-name()='Contact']/*[local-name()='ElectronicMail']", $party)),
+            'email' => $contactEmail,
             'electronic_address' => $endpoint instanceof \DOMNode ? $this->nullable(trim($endpoint->textContent)) : null,
             'electronic_address_scheme' => $endpoint instanceof \DOMElement
                 ? $this->nullable($endpoint->getAttribute('schemeID'))
                 : null,
+            'contact_name' => $this->nullable($this->value($xpath, ".//*[local-name()='Contact']/*[local-name()='Name']", $party)),
+            'contact_phone' => $this->nullable($this->value($xpath, ".//*[local-name()='Contact']/*[local-name()='Telephone']", $party)),
+            'contact_email' => $contactEmail,
         ];
     }
 

@@ -4,14 +4,13 @@
  xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2">
   <cbc:CustomizationID>urn:cen.eu:en16931:2017#compliant#urn:xeinkauf.de:kosit:xrechnung_3.0</cbc:CustomizationID>
   <cbc:ProfileID>urn:fdc:peppol.eu:2017:poacc:billing:01:1.0</cbc:ProfileID>
-  <cbc:ID>BR-CO-15</cbc:ID>
+  <cbc:ID>BR-DE-15</cbc:ID>
   <cbc:IssueDate>2026-03-10</cbc:IssueDate>
   <cbc:InvoiceTypeCode>380</cbc:InvoiceTypeCode>
   <cbc:DocumentCurrencyCode>EUR</cbc:DocumentCurrencyCode>
-  <cbc:BuyerReference>BUYER-REF-1</cbc:BuyerReference>
-
   <cac:AccountingSupplierParty>
-    <cac:Party><cbc:EndpointID schemeID="EM">seller@vendor.example</cbc:EndpointID>
+    <cac:Party>
+      <cbc:EndpointID schemeID="EM">seller@vendor.example</cbc:EndpointID>
       <cac:PartyName><cbc:Name>Vendor GmbH</cbc:Name></cac:PartyName>
       <cac:PartyTaxScheme><cbc:CompanyID>DE999999999</cbc:CompanyID></cac:PartyTaxScheme>
       <cac:Contact>
@@ -22,7 +21,8 @@
     </cac:Party>
   </cac:AccountingSupplierParty>
   <cac:AccountingCustomerParty>
-    <cac:Party><cbc:EndpointID schemeID="EM">buyer@customer.example</cbc:EndpointID>
+    <cac:Party>
+      <cbc:EndpointID schemeID="EM">buyer@customer.example</cbc:EndpointID>
       <cac:PartyName><cbc:Name>Buyer GmbH</cbc:Name></cac:PartyName>
       <cac:PostalAddress>
         <cbc:StreetName>Kundenstr. 2</cbc:StreetName>
@@ -38,7 +38,6 @@
       <cbc:ID>DE89370400440532013000</cbc:ID>
     </cac:PayeeFinancialAccount>
   </cac:PaymentMeans>
-
   <cac:TaxTotal>
     <cbc:TaxAmount currencyID="EUR">19.00</cbc:TaxAmount>
     <cac:TaxSubtotal>
@@ -53,7 +52,7 @@
   <cac:LegalMonetaryTotal>
     <cbc:LineExtensionAmount currencyID="EUR">100.00</cbc:LineExtensionAmount>
     <cbc:TaxExclusiveAmount currencyID="EUR">100.00</cbc:TaxExclusiveAmount>
-    <cbc:TaxInclusiveAmount currencyID="EUR">120.00</cbc:TaxInclusiveAmount>
+    <cbc:TaxInclusiveAmount currencyID="EUR">119.00</cbc:TaxInclusiveAmount>
   </cac:LegalMonetaryTotal>
   <cac:InvoiceLine>
     <cbc:ID>1</cbc:ID>

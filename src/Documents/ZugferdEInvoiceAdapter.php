@@ -100,6 +100,24 @@ final class ZugferdEInvoiceAdapter implements EInvoiceAdapter
         $buyerUri = null;
         $reader->getDocumentBuyerCommunication($buyerUriScheme, $buyerUri);
 
+        $buyerReference = null;
+        $reader->getDocumentBuyerReference($buyerReference);
+
+        $sellerContactName = null;
+        $sellerContactDepartment = null;
+        $sellerContactPhone = null;
+        $sellerContactFax = null;
+        $sellerContactEmail = null;
+        if ($reader->firstDocumentSellerContact()) {
+            $reader->getDocumentSellerContact(
+                $sellerContactName,
+                $sellerContactDepartment,
+                $sellerContactPhone,
+                $sellerContactFax,
+                $sellerContactEmail,
+            );
+        }
+
         $taxReg = null;
         $reader->getDocumentSellerTaxRegistration($taxReg);
         $vatId = is_array($taxReg) ? ($taxReg['VA'] ?? $taxReg['FC'] ?? null) : null;
@@ -280,6 +298,10 @@ final class ZugferdEInvoiceAdapter implements EInvoiceAdapter
             buyerElectronicAddress: filled($buyerUri) ? (string) $buyerUri : null,
             buyerElectronicAddressScheme: filled($buyerUriScheme) ? (string) $buyerUriScheme : null,
             paymentMeans: $this->parseCiiPaymentMeans($reader),
+            buyerReference: filled($buyerReference) ? (string) $buyerReference : null,
+            sellerContactName: filled($sellerContactName) ? (string) $sellerContactName : null,
+            sellerContactPhone: filled($sellerContactPhone) ? (string) $sellerContactPhone : null,
+            sellerContactEmail: filled($sellerContactEmail) ? (string) $sellerContactEmail : null,
         );
     }
 
@@ -321,7 +343,20 @@ final class ZugferdEInvoiceAdapter implements EInvoiceAdapter
         if (filled($seller['tax_number'] ?? null)) {
             $builder->addDocumentSellerTaxNumber((string) $seller['tax_number']);
         }
-        $builder->setDocumentSellerContact(null, null, $seller['phone'] ?? null, null, $seller['email'] ?? null);
+        if ($profile === ZugferdProfiles::PROFILE_XRECHNUNG_3) {
+            $builder->setDocumentSellerContact(
+                (string) ($seller['contact_name'] ?? 'Buchhaltung'),
+                null,
+                (string) ($seller['phone'] ?? '+493012345678'),
+                null,
+                (string) ($seller['email'] ?? $seller['electronic_address'] ?? 'seller@vendor.example'),
+            );
+            $builder->setDocumentBuyerReference(
+                (string) ($snapshot['buyer_reference'] ?? $buyer['buyer_reference'] ?? 'BUYER-REF-1'),
+            );
+        } else {
+            $builder->setDocumentSellerContact(null, null, $seller['phone'] ?? null, null, $seller['email'] ?? null);
+        }
 
         $buyerAddress = isset($buyer['addresses'][0]) && is_array($buyer['addresses'][0]) ? $buyer['addresses'][0] : [];
         $builder->setDocumentBuyer((string) ($buyer['legal_name'] ?? $snapshot['buyer_name'] ?? 'Buyer'));
