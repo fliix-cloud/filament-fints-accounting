@@ -12,13 +12,36 @@ use horstoeko\zugferd\ZugferdProfileResolver;
 use horstoeko\zugferd\ZugferdSettings;
 
 /**
- * Fail-closed schema + DE-EUR EN 16931 business-rule gate for incoming e-invoices.
+ * Fail-closed schema + DE-EUR EN 16931 reception subset for incoming e-invoices.
  *
- * This is a documented subset, not a full Schematron / XRechnung / ZUGFeRD
- * certification engine.
+ * This is a documented subset gate (schema + material BRs including buyer,
+ * BG-23, and CIUS identifiers). It is not a full Schematron / XRechnung /
+ * ZUGFeRD certification engine.
  */
 final class ValidateIncomingEInvoice
 {
+    /** @var list<string> */
+    private const INVOICE_TYPE_CODES = ['380', '381', '384', '389', '326', '261', '382', '386', '875', '876', '877'];
+
+    /** @var list<string> */
+    private const ACCEPTED_CIUS = [
+        'urn:xeinkauf.de:kosit:xrechnung_3.0',
+        'urn:xoev-de:kosit:standard:xrechnung_2.3',
+        'urn:xoev-de:kosit:standard:xrechnung_2.2',
+        'urn:xoev-de:kosit:standard:xrechnung_2.1',
+        'urn:xoev-de:kosit:standard:xrechnung_2.0',
+        'urn:xoev-de:kosit:standard:xrechnung_1.2',
+        'urn:fdc:peppol.eu:2017:poacc:billing:3.0',
+        'urn:factur-x.eu:1p0:en16931',
+        'urn:factur-x.eu:1p0:basic',
+        'urn:zugferd.de:2p0:en16931',
+        'urn:zugferd.de:2p0:basic',
+    ];
+
+    private const EN16931_SPEC = 'urn:cen.eu:en16931:2017';
+
+    private const PEPPOL_BILLING_PROCESS = 'urn:fdc:peppol.eu:2017:poacc:billing:01:1.0';
+
     public function __construct(
         private readonly MapImportedEInvoiceTax $taxMapping,
     ) {}
@@ -55,6 +78,10 @@ final class ValidateIncomingEInvoice
             throw $this->businessRule('BR-16', 'Invoice has no lines');
         }
 
+        $this->assertInvoiceTypeCode($parsed->invoiceTypeCode);
+        $this->assertBuyer($parsed);
+        $this->assertSpecification($parsed->customizationId, $parsed->profileId);
+
         $sumLineNets = 0;
         $computedTax = 0;
         foreach ($parsed->lines as $line) {
@@ -87,6 +114,167 @@ final class ValidateIncomingEInvoice
                 'BR-CO-17',
                 "VAT amount {$parsed->taxMinor} does not equal the sum of line VAT {$computedTax}",
             );
+        }
+
+        $this->assertVatBreakdown($parsed);
+    }
+
+    private function assertInvoiceTypeCode(?string $typeCode): void
+    {
+        $code = trim((string) $typeCode);
+        if ($code === '') {
+            throw $this->businessRule('BR-04', 'Invoice type code (BT-3) is missing');
+        }
+        if (! in_array($code, self::INVOICE_TYPE_CODES, true)) {
+            throw $this->businessRule('BR-04', 'Invoice type code (BT-3) is not an accepted document type');
+        }
+    }
+
+    private function assertBuyer(EInvoiceParseResult $parsed): void
+    {
+        if (! filled($parsed->buyerName)) {
+            throw $this->businessRule('BR-07', 'Buyer name (BT-44) is missing');
+        }
+
+        $country = strtoupper(trim((string) $parsed->buyerCountryCode));
+        $hasPostal = filled($parsed->buyerAddressLine1)
+            || filled($parsed->buyerPostalCode)
+            || filled($parsed->buyerCity)
+            || $country !== '';
+        if (! $hasPostal) {
+            throw $this->businessRule('BR-10', 'Buyer postal address (BG-8) is missing');
+        }
+        if (preg_match('/^[A-Z]{2}$/', $country) !== 1) {
+            throw $this->businessRule('BR-11', 'Buyer country code (BT-55) is missing');
+        }
+
+        if ($this->isXrechnung($parsed->customizationId)) {
+            if (! filled($parsed->buyerCity)) {
+                throw $this->businessRule('BR-DE-8', 'Buyer city (BT-52) is missing');
+            }
+            if (! filled($parsed->buyerPostalCode)) {
+                throw $this->businessRule('BR-DE-9', 'Buyer post code (BT-53) is missing');
+            }
+        }
+    }
+
+    private function assertSpecification(?string $customizationId, ?string $profileId): void
+    {
+        $spec = strtolower(trim((string) $customizationId));
+        if ($spec === '') {
+            throw $this->businessRule('BR-01', 'Specification identifier (BT-24) is missing');
+        }
+        if (! $this->isAcceptedSpecification($spec)) {
+            throw $this->businessRule(
+                'BR-01',
+                'Specification identifier (BT-24) is not an accepted EN 16931 / XRechnung CIUS',
+            );
+        }
+
+        $profile = strtolower(trim((string) $profileId));
+        if ($this->isXrechnung($spec) && $profile === '') {
+            throw $this->businessRule('BR-DE-2', 'Business process type (BT-23) is missing for XRechnung');
+        }
+        if ($profile !== '' && $profile !== self::PEPPOL_BILLING_PROCESS) {
+            throw $this->businessRule(
+                'BT-23',
+                'Business process type (BT-23) is not an accepted reception process identifier',
+            );
+        }
+    }
+
+    private function isAcceptedSpecification(string $spec): bool
+    {
+        if ($spec === self::EN16931_SPEC) {
+            return true;
+        }
+
+        $prefix = self::EN16931_SPEC.'#compliant#';
+        if (! str_starts_with($spec, $prefix)) {
+            return false;
+        }
+
+        $cius = explode('#conformant#', substr($spec, strlen($prefix)), 2)[0];
+
+        return in_array($cius, self::ACCEPTED_CIUS, true);
+    }
+
+    private function isXrechnung(?string $customizationId): bool
+    {
+        return str_contains(strtolower((string) $customizationId), 'xrechnung');
+    }
+
+    private function assertVatBreakdown(EInvoiceParseResult $parsed): void
+    {
+        if ($parsed->vatBreakdown === []) {
+            throw $this->businessRule('BG-23', 'VAT breakdown is missing');
+        }
+
+        $sumTaxable = 0;
+        $sumTax = 0;
+        /** @var array<string, array{taxable: int, tax: int}> $groups */
+        $groups = [];
+        foreach ($parsed->vatBreakdown as $group) {
+            $category = strtoupper(trim($group['category']));
+            if ($category === '') {
+                throw $this->businessRule('BG-23', 'VAT category code (BT-118) is missing');
+            }
+
+            $rateBp = $group['rate_bp'];
+            $taxable = $group['taxable_minor'];
+            $tax = $group['tax_minor'];
+            $this->taxMapping->code($rateBp, $category);
+
+            $key = $category.'|'.($rateBp === null ? 'none' : (string) $rateBp);
+            if (array_key_exists($key, $groups)) {
+                throw $this->businessRule('BG-23', 'duplicate VAT breakdown for category '.$category);
+            }
+
+            $expectedTax = LineMoneyCalculator::taxMinor($taxable, $rateBp ?? 0);
+            if ($expectedTax !== $tax) {
+                throw $this->businessRule(
+                    'BG-23',
+                    "VAT category tax amount {$tax} does not equal taxable amount {$taxable} × rate",
+                );
+            }
+
+            $groups[$key] = ['taxable' => $taxable, 'tax' => $tax];
+            $sumTaxable += $taxable;
+            $sumTax += $tax;
+        }
+
+        if ($sumTaxable !== $parsed->netMinor) {
+            throw $this->businessRule(
+                'BR-CO-13',
+                "sum of VAT category taxable amounts {$sumTaxable} does not equal TaxExclusiveAmount {$parsed->netMinor}",
+            );
+        }
+        if ($sumTax !== $parsed->taxMinor) {
+            throw $this->businessRule(
+                'BR-CO-14',
+                "sum of VAT category tax amounts {$sumTax} does not equal invoice VAT amount {$parsed->taxMinor}",
+            );
+        }
+
+        $lineGroups = [];
+        foreach ($parsed->lines as $line) {
+            $category = strtoupper(trim((string) ($line['tax_category'] ?? '')));
+            $rateBp = array_key_exists('tax_rate_bp', $line) && $line['tax_rate_bp'] !== null
+                ? (int) $line['tax_rate_bp']
+                : null;
+            $key = $category.'|'.($rateBp === null ? 'none' : (string) $rateBp);
+            $lineGroups[$key] = ($lineGroups[$key] ?? 0) + $this->lineNetMinor($line);
+        }
+
+        foreach ($lineGroups as $key => $lineTaxable) {
+            if (! array_key_exists($key, $groups) || $groups[$key]['taxable'] !== $lineTaxable) {
+                throw $this->businessRule('BG-23', 'VAT breakdown taxable amounts do not match invoice lines');
+            }
+        }
+        foreach ($groups as $key => $group) {
+            if (! array_key_exists($key, $lineGroups)) {
+                throw $this->businessRule('BG-23', 'VAT breakdown taxable amounts do not match invoice lines');
+            }
         }
     }
 

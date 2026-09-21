@@ -9,6 +9,7 @@ final readonly class EInvoiceParseResult
      * @param  list<string>  $errors
      * @param  list<string>  $warnings
      * @param  array<string, mixed>  $meta
+     * @param  list<array{category: string, rate_bp: int|null, taxable_minor: int, tax_minor: int}>  $vatBreakdown
      */
     public function __construct(
         public string $formatKey,
@@ -33,5 +34,14 @@ final readonly class EInvoiceParseResult
         public ?string $sellerCity = null,
         public ?string $sellerCountryCode = null,
         public ?string $sellerEmail = null,
+        public ?string $invoiceTypeCode = null,
+        public ?string $customizationId = null,
+        public ?string $profileId = null,
+        public ?string $buyerName = null,
+        public ?string $buyerAddressLine1 = null,
+        public ?string $buyerPostalCode = null,
+        public ?string $buyerCity = null,
+        public ?string $buyerCountryCode = null,
+        public array $vatBreakdown = [],
     ) {}
 }

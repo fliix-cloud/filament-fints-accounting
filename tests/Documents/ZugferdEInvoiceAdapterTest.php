@@ -81,6 +81,11 @@ class ZugferdEInvoiceAdapterTest extends TestCase
         $this->assertSame(17250, $parsed->grossMinor);
         $this->assertSame('DE123456789', $parsed->sellerVatId);
         $this->assertSame('Seller GmbH', $parsed->sellerName);
+        $this->assertSame('Buyer GmbH', $parsed->buyerName);
+        $this->assertSame('DE', $parsed->buyerCountryCode);
+        $this->assertSame('380', $parsed->invoiceTypeCode);
+        $this->assertSame('urn:cen.eu:en16931:2017', $parsed->customizationId);
+        $this->assertCount(2, $parsed->vatBreakdown);
 
         $this->assertCount(2, $parsed->lines);
         $byRate = array_combine(

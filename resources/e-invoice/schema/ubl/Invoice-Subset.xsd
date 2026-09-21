@@ -5,7 +5,8 @@
   This is not the full OASIS UBL 2.1 Invoice XSD. It type-checks the elements
   the package imports (identifiers, dates, amounts, parties, lines, tax,
   allowance/charge) and allows the usual EN 16931 optional aggregates as
-  opaque nodes. Full OASIS UBL XSD / XRechnung CIUS remain deferred.
+  opaque nodes. Buyer, BG-23, and CIUS identifiers are enforced in the
+  PHP reception subset, not by this XSD. Full OASIS UBL XSD remains deferred.
 -->
 <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
            xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2"
