@@ -166,6 +166,7 @@ return [
     ],
 
     'e_invoice' => [
+        // en16931 (Factur-X CII), xrechnung_3 (XRechnung CII), or xrechnung_3_ubl (XRechnung UBL, no Factur-X embed).
         'default_profile' => 'en16931',
         'generate_on_issue' => true,
     ],

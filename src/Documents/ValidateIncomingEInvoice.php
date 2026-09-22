@@ -55,17 +55,6 @@ final class ValidateIncomingEInvoice
     private const DIRECT_DEBIT_CODES = ['49', '59'];
 
     /**
-     * Documented electronic-address schemes for XRechnung and Peppol BIS Billing 3.0 XML.
-     * This is the German-relevant slice of the CEF EAS code list, not the full list.
-     *
-     * EM electronic mail, 0060 DUNS, 0088 GS1 GLN, 0204 Leitweg-ID,
-     * 0246 German Electronic Business Address, 9930 German VAT number.
-     *
-     * @var list<string>
-     */
-    private const EAS_SCHEMES = ['EM', '0060', '0088', '0204', '0246', '9930'];
-
-    /**
      * VAT category codes that trigger XRechnung BR-DE-16 (S, Z, E, AE, K, G, L, M).
      *
      * @var list<string>
@@ -276,7 +265,7 @@ final class ValidateIncomingEInvoice
         if (! filled($scheme)) {
             throw $this->businessRule('BR-62', $label.' shall have a scheme identifier');
         }
-        if (! in_array(strtoupper(trim($scheme)), self::EAS_SCHEMES, true)) {
+        if (! EInvoiceSubsetCatalog::easSchemeAllowed($scheme)) {
             throw $this->businessRule('BR-CL-25', $label.' scheme identifier is not in the documented EAS subset');
         }
     }
@@ -414,12 +403,7 @@ final class ValidateIncomingEInvoice
 
     private function vatIdentifierIsValid(string $value): bool
     {
-        $normalized = strtoupper((string) preg_replace('/\s+/', '', trim($value)));
-        if (str_starts_with($normalized, 'DE')) {
-            return preg_match('/^DE[0-9]{9}$/', $normalized) === 1;
-        }
-
-        return preg_match('/^(EL|[A-Z]{2})[A-Z0-9]{2,12}$/', $normalized) === 1;
+        return EInvoiceSubsetCatalog::vatIdentifierIsValid($value);
     }
 
     private function xrechnungRequiresSellerVatIdentifier(EInvoiceParseResult $parsed): bool

@@ -7,6 +7,8 @@ use FilamentAccounting\Audit\CanonicalJson;
 use FilamentAccounting\Contracts\AccountingAuthorizer;
 use FilamentAccounting\Contracts\EInvoiceAdapter;
 use FilamentAccounting\Contracts\InvoiceRenderer;
+use FilamentAccounting\Documents\UblEInvoiceParser;
+use FilamentAccounting\Documents\UblXRechnungInvoice;
 use FilamentAccounting\Documents\ValidateIncomingEInvoice;
 use FilamentAccounting\Documents\ValidateOutgoingEInvoice;
 use FilamentAccounting\Enums\DocumentStatus;
@@ -41,6 +43,8 @@ final class GenerateInvoiceArtifacts
         private readonly AuditEventHasher $eventHasher,
         private readonly ValidateOutgoingEInvoice $outgoing,
         private readonly ValidateIncomingEInvoice $incoming,
+        private readonly UblXRechnungInvoice $ublInvoice,
+        private readonly UblEInvoiceParser $ublParser,
     ) {}
 
     /** @return array{pdf: Attachment, xml: Attachment} */
@@ -87,9 +91,7 @@ final class GenerateInvoiceArtifacts
                             'size' => $file['size'], 'sha256' => $file['sha256'], 'disk' => $locked->disk,
                             'path' => $file['path'], 'source_type' => 'generated_'.$role,
                             'structured_payload' => $role === 'xml' ? $locked->xml : null,
-                            'meta' => $locked->meta + ($role === 'pdf' ? [
-                                'embedded_xml_sha256' => $locked->manifest['xml']['sha256'], 'pdfa_part' => 3, 'pdfa_conformance' => 'B',
-                            ] : []),
+                            'meta' => $locked->meta + ($role === 'pdf' ? $this->pdfMeta($locked) : []),
                         ]);
                     } else {
                         $this->assertAttachment($attachments->first(), $locked, $role);
@@ -178,9 +180,7 @@ final class GenerateInvoiceArtifacts
     private function assertAttachment(?Model $attachment, InvoiceArtifactSet $set, string $role): void
     {
         $file = $set->manifest[$role];
-        $meta = $set->meta + ($role === 'pdf' ? [
-            'embedded_xml_sha256' => $set->manifest['xml']['sha256'], 'pdfa_part' => 3, 'pdfa_conformance' => 'B',
-        ] : []);
+        $meta = $set->meta + ($role === 'pdf' ? $this->pdfMeta($set) : []);
         if (! $attachment instanceof Attachment || $attachment->disk !== $set->disk
             || $attachment->legal_entity_id !== $set->legal_entity_id || $attachment->path !== $file['path']
             || $attachment->sha256 !== $file['sha256'] || $attachment->size !== $file['size']
@@ -239,11 +239,19 @@ final class GenerateInvoiceArtifacts
             }
             $snapshot = $this->snapshot($document);
             $this->outgoing->assert($snapshot);
-            $xml = $this->eInvoice->generate($snapshot);
-            $this->validateXml($xml);
-            $this->assertReceptionRoundTrip($xml);
-            $pdf = (new ZugferdDocumentPdfMerger($xml, $this->renderer->render($snapshot)))->generateDocument()->downloadString();
-            if ($xml !== ZugferdDocumentPdfReaderExt::getInvoiceDocumentContentFromContent($pdf)) {
+            $ubl = $this->outgoing->isUbl((string) $snapshot['e_invoice_profile']);
+            $xml = $ubl ? $this->ublInvoice->generate($snapshot) : $this->eInvoice->generate($snapshot);
+            if ($ubl) {
+                $this->assertReceptionRoundTrip($xml, 'ubl');
+            } else {
+                $this->validateXml($xml);
+                $this->assertReceptionRoundTrip($xml, 'zugferd');
+            }
+            $rendered = $this->renderer->render($snapshot);
+            $pdf = $ubl
+                ? $rendered
+                : (new ZugferdDocumentPdfMerger($xml, $rendered))->generateDocument()->downloadString();
+            if (! $ubl && $xml !== ZugferdDocumentPdfReaderExt::getInvoiceDocumentContentFromContent($pdf)) {
                 throw new DocumentException(__('filament-accounting::errors.embedded_xml_mismatch'));
             }
             $disk = (string) config('filament-accounting.storage.disk', 'local');
@@ -261,6 +269,8 @@ final class GenerateInvoiceArtifacts
                     'sha256' => hash('sha256', $bytes), 'size' => strlen($bytes)];
             }
             $meta = ['generated_at' => now()->toIso8601String(), 'profile' => (string) $snapshot['e_invoice_profile'],
+                'syntax' => $ubl ? 'ubl' : 'cii',
+                'facturx_embed' => ! $ubl,
                 'validation_status' => 'de_eur_subset_passed',
                 'renderer' => $this->renderer->key(), 'renderer_version' => $this->renderer->version(),
                 'template' => $snapshot['seller']['invoice_template_key'] ?? 'default',
@@ -311,11 +321,13 @@ final class GenerateInvoiceArtifacts
         }
     }
 
-    private function assertReceptionRoundTrip(string $xml): void
+    private function assertReceptionRoundTrip(string $xml, string $format): void
     {
         try {
-            $this->incoming->assertSchema($xml, 'zugferd');
-            $parsed = $this->eInvoice->parse($xml, 'issued-invoice.xml');
+            $this->incoming->assertSchema($xml, $format);
+            $parsed = $format === 'ubl'
+                ? $this->ublParser->parse($xml, 'issued-invoice.xml')
+                : $this->eInvoice->parse($xml, 'issued-invoice.xml');
             if (! $parsed->valid) {
                 throw new DocumentException(implode('; ', $parsed->errors));
             }
@@ -328,10 +340,34 @@ final class GenerateInvoiceArtifacts
     }
 
     /** @return array<string, mixed> */
+    private function pdfMeta(InvoiceArtifactSet $set): array
+    {
+        if (($set->meta['facturx_embed'] ?? true) !== true) {
+            return [
+                'syntax' => 'ubl',
+                'facturx_embed' => false,
+                'structured_original' => 'xml',
+            ];
+        }
+
+        return [
+            'embedded_xml_sha256' => $set->manifest['xml']['sha256'],
+            'pdfa_part' => 3,
+            'pdfa_conformance' => 'B',
+        ];
+    }
+
+    /** @return array<string, mixed> */
     public function snapshot(Document $document): array
     {
         $buyerSnapshot = $document->party_snapshot ?? [];
         $buyerReference = $buyerSnapshot['external_reference'] ?? null;
+        $seller = $document->legal_entity_snapshot ?? [];
+        foreach (['tax_representative_name', 'tax_representative_vat_id', 'tax_representative_country_code'] as $key) {
+            if (! filled($seller[$key] ?? null) && filled(data_get($document->e_invoice_meta, $key))) {
+                $seller[$key] = data_get($document->e_invoice_meta, $key);
+            }
+        }
 
         return [
             'number' => $document->number,
@@ -341,7 +377,7 @@ final class GenerateInvoiceArtifacts
             'net_minor' => $document->net_minor,
             'tax_minor' => $document->tax_minor,
             'gross_minor' => $document->gross_minor,
-            'seller' => $document->legal_entity_snapshot ?? [],
+            'seller' => $seller,
             'buyer' => $document->party_snapshot ?? [],
             'seller_name' => (string) (($document->legal_entity_snapshot ?? [])['legal_name'] ?? ''),
             'buyer_name' => (string) ($buyerSnapshot['legal_name'] ?? ''),

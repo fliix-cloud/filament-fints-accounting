@@ -334,7 +334,13 @@ final class ZugferdEInvoiceAdapter implements EInvoiceAdapter
 
     public function generate(array $snapshot): string
     {
-        $profile = match ((string) ($snapshot['e_invoice_profile'] ?? 'en16931')) {
+        $profileKey = (string) ($snapshot['e_invoice_profile'] ?? 'en16931');
+        if ($profileKey === ValidateOutgoingEInvoice::PROFILE_XRECHNUNG_3_UBL) {
+            throw new DocumentException(__('filament-accounting::errors.e_invoice_issuing_subset_failed', [
+                'detail' => 'XRechnung UBL is issued as UBL XML, not as Factur-X CII',
+            ]));
+        }
+        $profile = match ($profileKey) {
             'xrechnung_3' => ZugferdProfiles::PROFILE_XRECHNUNG_3,
             default => ZugferdProfiles::PROFILE_EN16931,
         };
@@ -366,6 +372,20 @@ final class ZugferdEInvoiceAdapter implements EInvoiceAdapter
         );
         if (filled($seller['vat_id'] ?? null)) {
             $builder->addDocumentSellerTaxRegistration('VA', (string) $seller['vat_id']);
+        }
+        if (filled($seller['tax_representative_name'] ?? null)
+            && filled($seller['tax_representative_vat_id'] ?? null)
+            && filled($seller['tax_representative_country_code'] ?? null)) {
+            $builder->setDocumentSellerTaxRepresentativeTradeParty((string) $seller['tax_representative_name']);
+            $builder->setDocumentSellerTaxRepresentativeAddress(
+                null,
+                null,
+                null,
+                null,
+                null,
+                (string) $seller['tax_representative_country_code'],
+            );
+            $builder->addDocumentSellerTaxRepresentativeTaxRegistration('VA', (string) $seller['tax_representative_vat_id']);
         }
         if (filled($seller['tax_number'] ?? null)) {
             $builder->addDocumentSellerTaxNumber((string) $seller['tax_number']);
@@ -407,13 +427,13 @@ final class ZugferdEInvoiceAdapter implements EInvoiceAdapter
             $buyerEndpoint = (string) ($buyer['electronic_address'] ?? $buyer['invoice_email'] ?? $buyer['email'] ?? '');
             if ($sellerEndpoint !== '') {
                 $builder->setDocumentSellerCommunication(
-                    (string) ($seller['electronic_address_scheme'] ?? 'EM'),
+                    strtoupper(trim((string) ($seller['electronic_address_scheme'] ?? 'EM'))),
                     $sellerEndpoint,
                 );
             }
             if ($buyerEndpoint !== '') {
                 $builder->setDocumentBuyerCommunication(
-                    (string) ($buyer['electronic_address_scheme'] ?? 'EM'),
+                    strtoupper(trim((string) ($buyer['electronic_address_scheme'] ?? 'EM'))),
                     $buyerEndpoint,
                 );
             }

@@ -2,6 +2,7 @@
 
 namespace FilamentAccounting\Tests\Documents;
 
+use FilamentAccounting\Documents\UblEInvoiceParser;
 use FilamentAccounting\Documents\ValidateIncomingEInvoice;
 use FilamentAccounting\Documents\ValidateOutgoingEInvoice;
 use FilamentAccounting\Documents\ZugferdEInvoiceAdapter;
@@ -74,7 +75,7 @@ class OutgoingEInvoiceSubsetTest extends TestCase
             app(GenerateInvoiceArtifacts::class)->handle($withoutVat);
             $this->fail('Missing seller VAT identifier must fail closed.');
         } catch (DocumentException $exception) {
-            $this->assertStringContainsString('BR-DE-16: Seller VAT identifier (BT-31) is missing', $exception->getMessage());
+            $this->assertStringContainsString('BR-DE-16: Seller VAT identifier (BT-31) or seller tax representative (BG-11) is missing', $exception->getMessage());
         }
 
         $this->assertSame(0, InvoiceArtifactSet::query()->count());
@@ -155,8 +156,114 @@ class OutgoingEInvoiceSubsetTest extends TestCase
         $this->assertSame(0, Attachment::query()->count());
     }
 
-    /** @param  array<string, mixed>  $seller */
-    private function issuedInvoice(array $seller = [], bool $buyerAddress = false, ?string $buyerReference = null): Document
+    #[Test]
+    public function xrechnung_ubl_is_the_structured_original_and_round_trips(): void
+    {
+        Storage::fake('accounting-artifacts');
+        config()->set('filament-accounting.storage.disk', 'accounting-artifacts');
+        config()->set('filament-accounting.e_invoice.default_profile', 'xrechnung_3_ubl');
+        $document = $this->issuedInvoice([
+            'invoice_contact_name' => 'Buchhaltung',
+            'phone' => '+493012345678',
+            'email' => 'seller@vendor.example',
+            'invoice_iban' => 'DE89370400440532013000',
+        ], buyerAddress: true, buyerReference: 'BUYER-REF-1');
+
+        $artifacts = app(GenerateInvoiceArtifacts::class)->handle($document);
+        $xml = app(ReadAttachment::class)->handle($artifacts['xml']);
+        $pdf = app(ReadAttachment::class)->handle($artifacts['pdf']);
+        $parsed = app(UblEInvoiceParser::class)->parse($xml, 'issued.xml');
+
+        $this->assertStringContainsString('<Invoice', $xml);
+        $this->assertStringNotContainsString('CrossIndustryInvoice', $xml);
+        $this->assertStringNotContainsString('factur-x.xml', $pdf);
+        $this->assertStringNotContainsString('CrossIndustryInvoice', $pdf);
+        app(ValidateIncomingEInvoice::class)->assertSchema($xml, 'ubl');
+        app(ValidateIncomingEInvoice::class)->assertBusinessRules($parsed);
+        $this->assertSame('BUYER-REF-1', $parsed->buyerReference);
+        $this->assertSame('DE123456789', $parsed->sellerVatId);
+        $this->assertSame('EM', $parsed->sellerElectronicAddressScheme);
+        $this->assertSame('de_eur_subset_passed', $artifacts['xml']->meta['validation_status']);
+        $this->assertSame('xrechnung_3_ubl', $artifacts['xml']->meta['profile']);
+        $this->assertSame('ubl', $artifacts['xml']->meta['syntax']);
+        $this->assertFalse($artifacts['xml']->meta['facturx_embed']);
+        $this->assertSame('xml', $artifacts['pdf']->meta['structured_original']);
+        $this->assertArrayNotHasKey('embedded_xml_sha256', $artifacts['pdf']->meta);
+        $this->assertStringNotContainsString('certified', strtolower(json_encode($artifacts['xml']->meta, JSON_THROW_ON_ERROR)));
+    }
+
+    #[Test]
+    public function issuing_accepts_a_complete_tax_representative_instead_of_seller_vat(): void
+    {
+        Storage::fake('accounting-artifacts');
+        config()->set('filament-accounting.storage.disk', 'accounting-artifacts');
+        config()->set('filament-accounting.e_invoice.default_profile', 'xrechnung_3_ubl');
+        $document = $this->issuedInvoice([
+            'vat_id' => null,
+            'invoice_contact_name' => 'Buchhaltung',
+            'phone' => '+493012345678',
+            'email' => 'seller@vendor.example',
+            'invoice_iban' => 'DE89370400440532013000',
+        ], buyerAddress: true, buyerReference: 'BUYER-REF-1', meta: [
+            'tax_representative_name' => 'Steuervertretung GmbH',
+            'tax_representative_vat_id' => 'DE111111111',
+            'tax_representative_country_code' => 'DE',
+        ]);
+
+        $artifacts = app(GenerateInvoiceArtifacts::class)->handle($document);
+        $xml = app(ReadAttachment::class)->handle($artifacts['xml']);
+        $parsed = app(UblEInvoiceParser::class)->parse($xml, 'issued.xml');
+        app(ValidateIncomingEInvoice::class)->assertBusinessRules($parsed);
+        $this->assertFalse(filled($parsed->sellerVatId));
+        $this->assertSame('Steuervertretung GmbH', $parsed->sellerTaxRepresentativeName);
+        $this->assertSame('DE111111111', $parsed->sellerTaxRepresentativeVatId);
+
+        $ciiSnapshot = app(GenerateInvoiceArtifacts::class)->snapshot($document);
+        $ciiSnapshot['e_invoice_profile'] = 'xrechnung_3';
+        $cii = app(ZugferdEInvoiceAdapter::class)->generate($ciiSnapshot);
+        $ciiParsed = app(ZugferdEInvoiceAdapter::class)->parse($cii, 'issued.xml');
+        app(ValidateIncomingEInvoice::class)->assertSchema($cii, 'zugferd');
+        app(ValidateIncomingEInvoice::class)->assertBusinessRules($ciiParsed);
+        $this->assertSame('DE111111111', $ciiParsed->sellerTaxRepresentativeVatId);
+        $this->assertFalse(filled($ciiParsed->sellerVatId));
+    }
+
+    #[Test]
+    public function issuing_rejects_a_malformed_vat_identifier_and_an_unknown_endpoint_scheme(): void
+    {
+        $document = $this->issuedInvoice([
+            'invoice_contact_name' => 'Buchhaltung',
+            'phone' => '+493012345678',
+            'email' => 'seller@vendor.example',
+            'invoice_iban' => 'DE89370400440532013000',
+        ], buyerAddress: true, buyerReference: 'BUYER-REF-1');
+        $snapshot = app(GenerateInvoiceArtifacts::class)->snapshot($document);
+        $snapshot['e_invoice_profile'] = 'xrechnung_3_ubl';
+        $snapshot['seller']['vat_id'] = 'DE123';
+
+        try {
+            app(ValidateOutgoingEInvoice::class)->assert($snapshot);
+            $this->fail('A short German VAT identifier must fail closed.');
+        } catch (DocumentException $exception) {
+            $this->assertStringContainsString('BR-CO-09: Seller VAT identifier (BT-31) has an invalid format', $exception->getMessage());
+        }
+
+        $snapshot['seller']['vat_id'] = 'DE123456789';
+        $snapshot['seller']['electronic_address_scheme'] = 'ZZ';
+        try {
+            app(ValidateOutgoingEInvoice::class)->assert($snapshot);
+            $this->fail('An unknown endpoint scheme must fail closed.');
+        } catch (DocumentException $exception) {
+            $this->assertStringContainsString('BR-CL-25: Seller electronic address (BT-34) scheme identifier is not in the documented EAS subset', $exception->getMessage());
+        }
+        $this->assertSame(0, InvoiceArtifactSet::query()->count());
+    }
+
+    /**
+     * @param  array<string, mixed>  $seller
+     * @param  array<string, mixed>  $meta
+     */
+    private function issuedInvoice(array $seller = [], bool $buyerAddress = false, ?string $buyerReference = null, array $meta = []): Document
     {
         config()->set('filament-accounting.e_invoice.generate_on_issue', false);
         $entity = $this->makeEntity($seller + [
@@ -183,11 +290,17 @@ class OutgoingEInvoiceSubsetTest extends TestCase
             ]);
         }
 
-        return app(IssueSalesInvoice::class)->issue(app(IssueSalesInvoice::class)->createDraft($entity, [
+        $draft = app(IssueSalesInvoice::class)->createDraft($entity, [
             'party_id' => $party->getKey(),
             'issue_date' => '2026-03-10',
             'currency' => 'EUR',
             'lines' => [['description' => 'Consulting', 'quantity' => '1', 'unit_price' => '100.00', 'tax_code' => 'DE-19']],
-        ]), false);
+        ]);
+        if ($meta !== []) {
+            $draft->e_invoice_meta = $meta;
+            $draft->save();
+        }
+
+        return app(IssueSalesInvoice::class)->issue($draft, false);
     }
 }
