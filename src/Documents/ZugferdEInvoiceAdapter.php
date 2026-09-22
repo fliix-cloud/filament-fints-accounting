@@ -345,14 +345,14 @@ final class ZugferdEInvoiceAdapter implements EInvoiceAdapter
         }
         if ($profile === ZugferdProfiles::PROFILE_XRECHNUNG_3) {
             $builder->setDocumentSellerContact(
-                (string) ($seller['contact_name'] ?? 'Buchhaltung'),
+                (string) ($seller['invoice_contact_name'] ?? $seller['contact_name'] ?? ''),
                 null,
-                (string) ($seller['phone'] ?? '+493012345678'),
+                (string) ($seller['phone'] ?? ''),
                 null,
-                (string) ($seller['email'] ?? $seller['electronic_address'] ?? 'seller@vendor.example'),
+                (string) ($seller['email'] ?? ''),
             );
             $builder->setDocumentBuyerReference(
-                (string) ($snapshot['buyer_reference'] ?? $buyer['buyer_reference'] ?? 'BUYER-REF-1'),
+                (string) ($snapshot['buyer_reference'] ?? $buyer['buyer_reference'] ?? $buyer['external_reference'] ?? ''),
             );
         } else {
             $builder->setDocumentSellerContact(null, null, $seller['phone'] ?? null, null, $seller['email'] ?? null);
@@ -376,14 +376,20 @@ final class ZugferdEInvoiceAdapter implements EInvoiceAdapter
         }
 
         if ($profile === ZugferdProfiles::PROFILE_XRECHNUNG_3) {
-            $builder->setDocumentSellerCommunication(
-                (string) ($seller['electronic_address_scheme'] ?? 'EM'),
-                (string) ($seller['electronic_address'] ?? $seller['email'] ?? 'seller@vendor.example'),
-            );
-            $builder->setDocumentBuyerCommunication(
-                (string) ($buyer['electronic_address_scheme'] ?? 'EM'),
-                (string) ($buyer['electronic_address'] ?? $buyer['email'] ?? 'buyer@customer.example'),
-            );
+            $sellerEndpoint = (string) ($seller['electronic_address'] ?? $seller['email'] ?? '');
+            $buyerEndpoint = (string) ($buyer['electronic_address'] ?? $buyer['invoice_email'] ?? $buyer['email'] ?? '');
+            if ($sellerEndpoint !== '') {
+                $builder->setDocumentSellerCommunication(
+                    (string) ($seller['electronic_address_scheme'] ?? 'EM'),
+                    $sellerEndpoint,
+                );
+            }
+            if ($buyerEndpoint !== '') {
+                $builder->setDocumentBuyerCommunication(
+                    (string) ($buyer['electronic_address_scheme'] ?? 'EM'),
+                    $buyerEndpoint,
+                );
+            }
         }
 
         $payment = (array) ($snapshot['payment'] ?? []);
@@ -392,9 +398,9 @@ final class ZugferdEInvoiceAdapter implements EInvoiceAdapter
                 throw new DocumentException(__('filament-accounting::invoice.mandate_required'));
             }
             $builder->addDocumentPaymentMeanToDirectDebit((string) $payment['debtor_iban'], (string) $payment['creditor_identifier']);
-        } elseif (filled($seller['invoice_iban'] ?? null) || $profile === ZugferdProfiles::PROFILE_XRECHNUNG_3) {
+        } elseif (filled($seller['invoice_iban'] ?? null)) {
             $builder->addDocumentPaymentMeanToCreditTransfer(
-                (string) ($seller['invoice_iban'] ?? 'DE89370400440532013000'),
+                (string) $seller['invoice_iban'],
                 (string) ($seller['legal_name'] ?? ''),
                 null,
                 filled($seller['invoice_bic'] ?? null) ? (string) $seller['invoice_bic'] : null,
@@ -419,8 +425,9 @@ final class ZugferdEInvoiceAdapter implements EInvoiceAdapter
                 ? ExactMoney::ofMinor((int) $line['unit_price_minor'], $currency)->decimalString()
                 : (string) ($line['unit_price'] ?? '0');
             $builder->setDocumentPositionNetPrice((float) $unitPrice);
-            $rate = ((int) ($line['tax_rate_bp'] ?? 0)) / 100;
-            $category = $this->taxCategory((string) ($line['tax_category'] ?? 'standard'), $rate);
+            $rateBp = (int) ($line['tax_rate_bp'] ?? 0);
+            $rate = $rateBp / 100;
+            $category = self::untDidTaxCategory((string) ($line['tax_category'] ?? 'standard'), $rateBp);
             $lineTax = ExactMoney::ofMinor((int) ($line['tax_minor'] ?? 0), $currency)->decimalString();
             $lineNet = ExactMoney::ofMinor((int) ($line['net_minor'] ?? 0), $currency)->decimalString();
             $builder->addDocumentPositionTax(
@@ -457,14 +464,14 @@ final class ZugferdEInvoiceAdapter implements EInvoiceAdapter
         return $builder->getContent();
     }
 
-    private function taxCategory(string $category, float $rate): string
+    public static function untDidTaxCategory(string $category, int $rateBp): string
     {
         return match ($category) {
             'exempt', 'non_taxable' => 'E',
             'reverse_charge' => 'AE',
             'intra_community_acquisition' => 'K',
             'zero' => 'Z',
-            default => $rate === 0.0 ? 'Z' : 'S',
+            default => $rateBp === 0 ? 'Z' : 'S',
         };
     }
 

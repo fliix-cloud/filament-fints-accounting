@@ -7,6 +7,8 @@ use FilamentAccounting\Audit\CanonicalJson;
 use FilamentAccounting\Contracts\AccountingAuthorizer;
 use FilamentAccounting\Contracts\EInvoiceAdapter;
 use FilamentAccounting\Contracts\InvoiceRenderer;
+use FilamentAccounting\Documents\ValidateIncomingEInvoice;
+use FilamentAccounting\Documents\ValidateOutgoingEInvoice;
 use FilamentAccounting\Enums\DocumentStatus;
 use FilamentAccounting\Enums\DocumentType;
 use FilamentAccounting\Exceptions\DocumentException;
@@ -37,6 +39,8 @@ final class GenerateInvoiceArtifacts
         private readonly AuditLogger $audit,
         private readonly CanonicalJson $canonical,
         private readonly AuditEventHasher $eventHasher,
+        private readonly ValidateOutgoingEInvoice $outgoing,
+        private readonly ValidateIncomingEInvoice $incoming,
     ) {}
 
     /** @return array{pdf: Attachment, xml: Attachment} */
@@ -234,8 +238,10 @@ final class GenerateInvoiceArtifacts
                 throw new DocumentException(__('filament-accounting::errors.invoice_originals_incomplete'));
             }
             $snapshot = $this->snapshot($document);
+            $this->outgoing->assert($snapshot);
             $xml = $this->eInvoice->generate($snapshot);
             $this->validateXml($xml);
+            $this->assertReceptionRoundTrip($xml);
             $pdf = (new ZugferdDocumentPdfMerger($xml, $this->renderer->render($snapshot)))->generateDocument()->downloadString();
             if ($xml !== ZugferdDocumentPdfReaderExt::getInvoiceDocumentContentFromContent($pdf)) {
                 throw new DocumentException(__('filament-accounting::errors.embedded_xml_mismatch'));
@@ -254,7 +260,8 @@ final class GenerateInvoiceArtifacts
                 $manifest[$role] = ['path' => $prefix.'/'.$role.'.'.$role, 'filename' => 'invoice-'.$document->uuid.'.'.$role,
                     'sha256' => hash('sha256', $bytes), 'size' => strlen($bytes)];
             }
-            $meta = ['generated_at' => now()->toIso8601String(), 'profile' => (string) config('filament-accounting.e_invoice.default_profile', 'en16931'),
+            $meta = ['generated_at' => now()->toIso8601String(), 'profile' => (string) $snapshot['e_invoice_profile'],
+                'validation_status' => 'de_eur_subset_passed',
                 'renderer' => $this->renderer->key(), 'renderer_version' => $this->renderer->version(),
                 'template' => $snapshot['seller']['invoice_template_key'] ?? 'default',
                 'template_version' => $snapshot['seller']['invoice_template_version'] ?? $this->renderer->version()];
@@ -277,17 +284,55 @@ final class GenerateInvoiceArtifacts
             $schema = (new ZugferdXsdValidator($invoice))->validate();
             $businessRuleViolations = (new ZugferdDocumentValidator($invoice))->validateDocument();
         } catch (\Throwable $exception) {
-            throw new DocumentException(__('filament-accounting::errors.invalid_generated_e_invoice'), previous: $exception);
+            throw new DocumentException(__('filament-accounting::errors.invalid_generated_e_invoice', [
+                'detail' => $exception->getMessage() !== '' ? $exception->getMessage() : 'schema or business-rule validation failed',
+            ]), previous: $exception);
         }
 
+        $details = [];
+        foreach ($schema->validationErrors() as $error) {
+            $details[] = trim((string) $error);
+            if (count($details) >= 3) {
+                break;
+            }
+        }
+        if ($details === []) {
+            foreach ($businessRuleViolations as $violation) {
+                $details[] = trim($violation->getMessage());
+                if (count($details) >= 3) {
+                    break;
+                }
+            }
+        }
         if ($schema->hasValidationErrors() || count($businessRuleViolations) > 0) {
-            throw new DocumentException(__('filament-accounting::errors.invalid_generated_e_invoice'));
+            throw new DocumentException(__('filament-accounting::errors.invalid_generated_e_invoice', [
+                'detail' => $details === [] ? 'schema or business-rule validation failed' : implode('; ', $details),
+            ]));
+        }
+    }
+
+    private function assertReceptionRoundTrip(string $xml): void
+    {
+        try {
+            $this->incoming->assertSchema($xml, 'zugferd');
+            $parsed = $this->eInvoice->parse($xml, 'issued-invoice.xml');
+            if (! $parsed->valid) {
+                throw new DocumentException(implode('; ', $parsed->errors));
+            }
+            $this->incoming->assertBusinessRules($parsed);
+        } catch (DocumentException $exception) {
+            throw new DocumentException(__('filament-accounting::errors.e_invoice_issuing_subset_failed', [
+                'detail' => $exception->getMessage(),
+            ]), previous: $exception);
         }
     }
 
     /** @return array<string, mixed> */
     public function snapshot(Document $document): array
     {
+        $buyerSnapshot = $document->party_snapshot ?? [];
+        $buyerReference = $buyerSnapshot['external_reference'] ?? null;
+
         return [
             'number' => $document->number,
             'issue_date' => $document->issue_date?->toDateString(),
@@ -299,7 +344,9 @@ final class GenerateInvoiceArtifacts
             'seller' => $document->legal_entity_snapshot ?? [],
             'buyer' => $document->party_snapshot ?? [],
             'seller_name' => (string) (($document->legal_entity_snapshot ?? [])['legal_name'] ?? ''),
-            'buyer_name' => (string) (($document->party_snapshot ?? [])['legal_name'] ?? ''),
+            'buyer_name' => (string) ($buyerSnapshot['legal_name'] ?? ''),
+            'e_invoice_profile' => $this->outgoing->profile(),
+            'buyer_reference' => filled($buyerReference) ? (string) $buyerReference : null,
             ...($document->payment_method === null ? [] : [
                 'payment' => $document->payment_snapshot ?? [],
                 'supply_date' => $document->supply_date?->toDateString(),
