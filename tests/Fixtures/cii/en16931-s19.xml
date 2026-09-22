@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Reception fixture: EN 16931 CII / Factur-X (package subset, not a certification sample). -->
+<!-- Reception fixture: EN 16931 CII / Factur-X without XRechnung seller city, post code, or VAT identifier. Package subset, not a certification sample. -->
 <rsm:CrossIndustryInvoice xmlns:rsm="urn:un:unece:uncefact:data:standard:CrossIndustryInvoice:100" xmlns:qdt="urn:un:unece:uncefact:data:standard:QualifiedDataType:100" xmlns:ram="urn:un:unece:uncefact:data:standard:ReusableAggregateBusinessInformationEntity:100" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:udt="urn:un:unece:uncefact:data:standard:UnqualifiedDataType:100" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
   <rsm:ExchangedDocumentContext>
     <ram:GuidelineSpecifiedDocumentContextParameter>
@@ -72,14 +72,9 @@
       <ram:SellerTradeParty>
         <ram:Name>Seller GmbH</ram:Name>
         <ram:PostalTradeAddress>
-          <ram:PostcodeCode>10115</ram:PostcodeCode>
           <ram:LineOne>Musterweg 1</ram:LineOne>
-          <ram:CityName>Berlin</ram:CityName>
           <ram:CountryID>DE</ram:CountryID>
         </ram:PostalTradeAddress>
-        <ram:SpecifiedTaxRegistration>
-          <ram:ID schemeID="VA">DE123456789</ram:ID>
-        </ram:SpecifiedTaxRegistration>
       </ram:SellerTradeParty>
       <ram:BuyerTradeParty>
         <ram:Name>Buyer GmbH</ram:Name>

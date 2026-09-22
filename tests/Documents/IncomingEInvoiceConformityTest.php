@@ -66,6 +66,9 @@ class IncomingEInvoiceConformityTest extends TestCase
         $this->assertSame('DE', $parsed->buyerCountryCode);
         $this->assertSame('München', $parsed->buyerCity);
         $this->assertSame('80331', $parsed->buyerPostalCode);
+        $this->assertSame('Berlin', $parsed->sellerCity);
+        $this->assertSame('10115', $parsed->sellerPostalCode);
+        $this->assertSame('DE999999999', $parsed->sellerVatId);
         $this->assertSame('380', $parsed->invoiceTypeCode);
         $this->assertSame('urn:cen.eu:en16931:2017#compliant#urn:xeinkauf.de:kosit:xrechnung_3.0', $parsed->customizationId);
         $this->assertSame('urn:fdc:peppol.eu:2017:poacc:billing:01:1.0', $parsed->profileId);
@@ -98,6 +101,10 @@ class IncomingEInvoiceConformityTest extends TestCase
         $entity = $this->makeEntity();
         $this->actingAs($this->makeUser());
         $xml = $this->ublFixture('en16931-core-s19.xml');
+        $parsed = app(UblEInvoiceParser::class)->parse($xml, 'en16931-core-s19.xml');
+        $this->assertFalse(filled($parsed->sellerCity));
+        $this->assertFalse(filled($parsed->sellerPostalCode));
+        $this->assertFalse(filled($parsed->sellerVatId));
 
         $result = app(ImportPurchaseInvoice::class)->handle($entity, 'en16931-core-s19.xml', $xml);
 
@@ -131,6 +138,16 @@ class IncomingEInvoiceConformityTest extends TestCase
         $entity = $this->makeEntity();
         $this->actingAs($this->makeUser());
         $xml = $this->fixture('cii', $fixture);
+        $parsed = app(ZugferdEInvoiceAdapter::class)->parse($xml, $fixture);
+        if (str_contains($fixture, 'xrechnung')) {
+            $this->assertSame('Berlin', $parsed->sellerCity);
+            $this->assertSame('10115', $parsed->sellerPostalCode);
+            $this->assertSame('DE123456789', $parsed->sellerVatId);
+        } else {
+            $this->assertFalse(filled($parsed->sellerCity));
+            $this->assertFalse(filled($parsed->sellerPostalCode));
+            $this->assertFalse(filled($parsed->sellerVatId));
+        }
 
         $result = app(ImportPurchaseInvoice::class)->handle($entity, $fixture, $xml);
 
@@ -285,6 +302,26 @@ class IncomingEInvoiceConformityTest extends TestCase
         yield 'XRechnung missing seller contact' => [
             'br-xrechnung-missing-seller-contact.xml',
             'BR-DE-2: Seller contact (BG-6) is missing',
+        ];
+        yield 'XRechnung missing seller city' => [
+            'br-xrechnung-missing-seller-city.xml',
+            'BR-DE-3: Seller city (BT-37) is missing',
+        ];
+        yield 'XRechnung missing seller post code' => [
+            'br-xrechnung-missing-seller-postcode.xml',
+            'BR-DE-4: Seller post code (BT-38) is missing',
+        ];
+        yield 'XRechnung missing seller VAT identifier' => [
+            'br-xrechnung-missing-seller-vat.xml',
+            'BR-DE-16: Seller VAT identifier (BT-31) is missing',
+        ];
+        yield 'XRechnung blank seller city' => [
+            'br-xrechnung-blank-seller-city.xml',
+            'BR-DE-3: Seller city (BT-37) is missing',
+        ];
+        yield 'XRechnung blank seller VAT identifier' => [
+            'br-xrechnung-blank-seller-vat.xml',
+            'BR-DE-16: Seller VAT identifier (BT-31) is missing',
         ];
     }
 
