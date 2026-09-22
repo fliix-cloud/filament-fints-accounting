@@ -106,6 +106,7 @@ final class UblEInvoiceParser
         if ($documentAllowanceCharges !== []) {
             $meta['document_allowance_charges'] = $documentAllowanceCharges;
         }
+        $representative = $this->parseTaxRepresentative($xpath);
 
         return new EInvoiceParseResult(
             formatKey: 'ubl',
@@ -147,6 +148,9 @@ final class UblEInvoiceParser
             sellerContactName: $seller['contact_name'],
             sellerContactPhone: $seller['contact_phone'],
             sellerContactEmail: $seller['contact_email'] ?? $seller['email'],
+            sellerTaxRepresentativeName: $representative['name'],
+            sellerTaxRepresentativeVatId: $representative['vat_id'],
+            sellerTaxRepresentativeCountryCode: $representative['country_code'],
         );
     }
 
@@ -366,7 +370,7 @@ final class UblEInvoiceParser
                 $this->value($xpath, ".//*[local-name()='PartyName']/*[local-name()='Name']", $party)
                     ?: $this->value($xpath, ".//*[local-name()='PartyLegalEntity']/*[local-name()='RegistrationName']", $party),
             ),
-            'vat_id' => $this->nullable($this->value($xpath, ".//*[local-name()='PartyTaxScheme']/*[local-name()='CompanyID']", $party)),
+            'vat_id' => $this->partyVatIdentifier($xpath, $party),
             'address_line1' => $this->nullable($this->value($xpath, ".//*[local-name()='PostalAddress']/*[local-name()='StreetName']", $party)),
             'address_line2' => $this->nullable($this->value($xpath, ".//*[local-name()='PostalAddress']/*[local-name()='AdditionalStreetName']", $party)),
             'postal_code' => $this->nullable($this->value($xpath, ".//*[local-name()='PostalAddress']/*[local-name()='PostalZone']", $party)),
@@ -380,6 +384,37 @@ final class UblEInvoiceParser
             'contact_name' => $this->nullable($this->value($xpath, ".//*[local-name()='Contact']/*[local-name()='Name']", $party)),
             'contact_phone' => $this->nullable($this->value($xpath, ".//*[local-name()='Contact']/*[local-name()='Telephone']", $party)),
             'contact_email' => $contactEmail,
+        ];
+    }
+
+    private function partyVatIdentifier(\DOMXPath $xpath, \DOMNode $party): ?string
+    {
+        foreach ($xpath->query(".//*[local-name()='PartyTaxScheme']", $party) ?: [] as $scheme) {
+            $identifier = $this->nullable($this->value($xpath, "./*[local-name()='CompanyID']", $scheme));
+            if ($identifier === null) {
+                continue;
+            }
+            $taxScheme = strtoupper($this->value($xpath, "./*[local-name()='TaxScheme']/*[local-name()='ID']", $scheme));
+            if ($taxScheme === '' || $taxScheme === 'VAT') {
+                return $identifier;
+            }
+        }
+
+        return null;
+    }
+
+    /** @return array{name: ?string, vat_id: ?string, country_code: ?string} */
+    private function parseTaxRepresentative(\DOMXPath $xpath): array
+    {
+        $party = $xpath->query("/*[local-name()='Invoice']/*[local-name()='TaxRepresentativeParty']")?->item(0);
+        if (! $party instanceof \DOMNode) {
+            return ['name' => null, 'vat_id' => null, 'country_code' => null];
+        }
+
+        return [
+            'name' => $this->nullable($this->value($xpath, ".//*[local-name()='PartyName']/*[local-name()='Name']", $party)),
+            'vat_id' => $this->partyVatIdentifier($xpath, $party),
+            'country_code' => $this->nullable($this->value($xpath, ".//*[local-name()='PostalAddress']//*[local-name()='IdentificationCode']", $party)),
         ];
     }
 
