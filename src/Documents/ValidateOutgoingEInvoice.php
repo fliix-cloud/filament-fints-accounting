@@ -7,10 +7,10 @@ use FilamentAccounting\Support\LineMoneyCalculator;
 use FilamentAccounting\Tax\MapImportedEInvoiceTax;
 
 /**
- * Fail-closed DE-EUR issuing subset for outbound ZUGFeRD / Factur-X CII.
+ * Fail-closed DE-EUR issuing subset for outbound Factur-X CII and XRechnung UBL.
  *
  * Runs on the frozen sales-invoice snapshot before XML or PDF bytes are created.
- * XRechnung CIUS extras apply only when the selected profile is xrechnung_3.
+ * XRechnung CIUS extras apply to xrechnung_3 (CII) and xrechnung_3_ubl (UBL).
  * This is not an EN 16931, XRechnung, or ZUGFeRD certification.
  */
 final class ValidateOutgoingEInvoice
@@ -18,6 +18,8 @@ final class ValidateOutgoingEInvoice
     public const PROFILE_EN16931 = 'en16931';
 
     public const PROFILE_XRECHNUNG_3 = 'xrechnung_3';
+
+    public const PROFILE_XRECHNUNG_3_UBL = 'xrechnung_3_ubl';
 
     /** @var list<string> */
     private const SELLER_VAT_CATEGORIES = ['S', 'Z', 'E', 'AE', 'K', 'G', 'L', 'M'];
@@ -29,11 +31,16 @@ final class ValidateOutgoingEInvoice
     public function profile(?string $configured = null): string
     {
         $profile = strtolower(trim($configured ?? (string) config('filament-accounting.e_invoice.default_profile', self::PROFILE_EN16931)));
-        if (! in_array($profile, [self::PROFILE_EN16931, self::PROFILE_XRECHNUNG_3], true)) {
+        if (! in_array($profile, [self::PROFILE_EN16931, self::PROFILE_XRECHNUNG_3, self::PROFILE_XRECHNUNG_3_UBL], true)) {
             throw $this->failed('Issuing profile is not in the documented DE-EUR subset');
         }
 
         return $profile;
+    }
+
+    public function isUbl(string $profile): bool
+    {
+        return $profile === self::PROFILE_XRECHNUNG_3_UBL;
     }
 
     /** @param  array<string, mixed>  $snapshot */
@@ -50,7 +57,7 @@ final class ValidateOutgoingEInvoice
         $this->assertBuyer($buyer, $profile);
         $this->assertLines($snapshot, $lines);
         $this->assertPayment($seller, $payment, $profile);
-        if ($profile === self::PROFILE_XRECHNUNG_3) {
+        if ($this->isXrechnung($profile)) {
             $this->assertXrechnungParties($snapshot, $seller, $buyer);
         }
     }
@@ -91,9 +98,45 @@ final class ValidateOutgoingEInvoice
         if (preg_match('/^[A-Z]{2}$/', strtoupper(trim((string) ($seller['country_code'] ?? '')))) !== 1) {
             throw $this->failed('BR-09: Seller country code (BT-40) is missing');
         }
-        if ($this->requiresSellerVat($lines) && ! filled($seller['vat_id'] ?? null)) {
-            throw $this->failed('BR-DE-16: Seller VAT identifier (BT-31) is missing');
+        if (filled($seller['vat_id'] ?? null) && ! EInvoiceSubsetCatalog::vatIdentifierIsValid((string) $seller['vat_id'])) {
+            throw $this->failed('BR-CO-09: Seller VAT identifier (BT-31) has an invalid format');
         }
+        $this->assertTaxRepresentative($seller);
+        if ($this->requiresSellerVat($lines) && ! filled($seller['vat_id'] ?? null) && ! $this->hasCompleteTaxRepresentative($seller)) {
+            throw $this->failed('BR-DE-16: Seller VAT identifier (BT-31) or seller tax representative (BG-11) is missing');
+        }
+    }
+
+    /** @param  array<string, mixed>  $seller */
+    private function assertTaxRepresentative(array $seller): void
+    {
+        $name = $seller['tax_representative_name'] ?? null;
+        $vatId = $seller['tax_representative_vat_id'] ?? null;
+        $country = strtoupper(trim((string) ($seller['tax_representative_country_code'] ?? '')));
+        if (! filled($name) && ! filled($vatId) && $country === '') {
+            return;
+        }
+        if (! filled($name)) {
+            throw $this->failed('BR-18: Seller tax representative name (BT-62) is missing');
+        }
+        if (! filled($vatId)) {
+            throw $this->failed('BR-DE-16: Seller tax representative VAT identifier (BT-63) is missing');
+        }
+        if (! EInvoiceSubsetCatalog::vatIdentifierIsValid((string) $vatId)) {
+            throw $this->failed('BR-CO-09: Seller tax representative VAT identifier (BT-63) has an invalid format');
+        }
+        if (preg_match('/^[A-Z]{2}$/', $country) !== 1) {
+            throw $this->failed('BR-20: Seller tax representative country code (BT-70) is missing');
+        }
+    }
+
+    /** @param  array<string, mixed>  $seller */
+    private function hasCompleteTaxRepresentative(array $seller): bool
+    {
+        return filled($seller['tax_representative_name'] ?? null)
+            && filled($seller['tax_representative_vat_id'] ?? null)
+            && EInvoiceSubsetCatalog::vatIdentifierIsValid((string) $seller['tax_representative_vat_id'])
+            && preg_match('/^[A-Z]{2}$/', strtoupper(trim((string) ($seller['tax_representative_country_code'] ?? '')))) === 1;
     }
 
     /** @param  array<string, mixed>  $buyer */
@@ -115,7 +158,7 @@ final class ValidateOutgoingEInvoice
         if (preg_match('/^[A-Z]{2}$/', $country) !== 1) {
             throw $this->failed('BR-11: Buyer country code (BT-55) is missing');
         }
-        if ($profile === self::PROFILE_XRECHNUNG_3) {
+        if ($this->isXrechnung($profile)) {
             if (! filled($address['city'] ?? null)) {
                 throw $this->failed('BR-DE-8: Buyer city (BT-52) is missing');
             }
@@ -195,7 +238,7 @@ final class ValidateOutgoingEInvoice
         if ($method !== 'credit_transfer') {
             throw $this->failed('BR-DE-13: Payment means type code (BT-81) is not an accepted issuing code');
         }
-        if ($profile === self::PROFILE_XRECHNUNG_3 && ! filled($seller['invoice_iban'] ?? null)) {
+        if ($this->isXrechnung($profile) && ! filled($seller['invoice_iban'] ?? null)) {
             throw $this->failed('BR-DE-23: Credit transfer (BG-17) IBAN (BT-84) is missing');
         }
     }
@@ -228,18 +271,31 @@ final class ValidateOutgoingEInvoice
         }
         $sellerEndpoint = trim((string) ($seller['electronic_address'] ?? $seller['email'] ?? ''));
         $buyerEndpoint = trim((string) ($buyer['electronic_address'] ?? $buyer['invoice_email'] ?? $buyer['email'] ?? ''));
+        $sellerScheme = strtoupper(trim((string) ($seller['electronic_address_scheme'] ?? 'EM')));
+        $buyerScheme = strtoupper(trim((string) ($buyer['electronic_address_scheme'] ?? 'EM')));
         if ($sellerEndpoint === '') {
             throw $this->failed('PEPPOL-EN16931-R020: Seller electronic address (BT-34) is missing');
         }
-        if (trim((string) ($seller['electronic_address_scheme'] ?? 'EM')) === '') {
+        if ($sellerScheme === '') {
             throw $this->failed('BR-62: Seller electronic address (BT-34) shall have a scheme identifier');
+        }
+        if (! EInvoiceSubsetCatalog::easSchemeAllowed($sellerScheme)) {
+            throw $this->failed('BR-CL-25: Seller electronic address (BT-34) scheme identifier is not in the documented EAS subset');
         }
         if ($buyerEndpoint === '') {
             throw $this->failed('PEPPOL-EN16931-R010: Buyer electronic address (BT-49) is missing');
         }
-        if (trim((string) ($buyer['electronic_address_scheme'] ?? 'EM')) === '') {
+        if ($buyerScheme === '') {
             throw $this->failed('BR-62: Buyer electronic address (BT-49) shall have a scheme identifier');
         }
+        if (! EInvoiceSubsetCatalog::easSchemeAllowed($buyerScheme)) {
+            throw $this->failed('BR-CL-25: Buyer electronic address (BT-49) scheme identifier is not in the documented EAS subset');
+        }
+    }
+
+    private function isXrechnung(string $profile): bool
+    {
+        return in_array($profile, [self::PROFILE_XRECHNUNG_3, self::PROFILE_XRECHNUNG_3_UBL], true);
     }
 
     /** @param  list<mixed>  $lines */
