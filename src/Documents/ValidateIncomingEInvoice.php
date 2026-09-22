@@ -16,7 +16,8 @@ use horstoeko\zugferd\ZugferdSettings;
  *
  * This is a documented subset gate (schema + material BRs including buyer,
  * BG-23, CIUS identifiers, XRechnung electronic addresses, payment means,
- * buyer reference, and seller contact).
+ * buyer reference, seller contact, seller city/post code, and seller VAT
+ * identifier).
  * It is not a full Schematron / XRechnung / ZUGFeRD certification engine.
  */
 final class ValidateIncomingEInvoice
@@ -51,6 +52,13 @@ final class ValidateIncomingEInvoice
 
     /** @var list<string> */
     private const DIRECT_DEBIT_CODES = ['49', '59'];
+
+    /**
+     * VAT category codes that trigger XRechnung BR-DE-16 (S, Z, E, AE, K, G, L, M).
+     *
+     * @var list<string>
+     */
+    private const XR_SELLER_VAT_CATEGORIES = ['S', 'Z', 'E', 'AE', 'K', 'G', 'L', 'M'];
 
     public function __construct(
         private readonly MapImportedEInvoiceTax $taxMapping,
@@ -95,6 +103,8 @@ final class ValidateIncomingEInvoice
         $this->assertXrechnungPaymentMeans($parsed);
         $this->assertXrechnungBuyerReference($parsed);
         $this->assertXrechnungSellerContact($parsed);
+        $this->assertXrechnungSellerPostalAddress($parsed);
+        $this->assertXrechnungSellerVatIdentifier($parsed);
 
         $sumLineNets = 0;
         $computedTax = 0;
@@ -317,6 +327,50 @@ final class ValidateIncomingEInvoice
         if ($email === '') {
             throw $this->businessRule('BR-DE-7', 'Seller contact email address (BT-43) is missing');
         }
+    }
+
+    private function assertXrechnungSellerPostalAddress(EInvoiceParseResult $parsed): void
+    {
+        if (! $this->isXrechnung($parsed->customizationId)) {
+            return;
+        }
+        if (! filled($parsed->sellerCity)) {
+            throw $this->businessRule('BR-DE-3', 'Seller city (BT-37) is missing');
+        }
+        if (! filled($parsed->sellerPostalCode)) {
+            throw $this->businessRule('BR-DE-4', 'Seller post code (BT-38) is missing');
+        }
+    }
+
+    private function assertXrechnungSellerVatIdentifier(EInvoiceParseResult $parsed): void
+    {
+        if (! $this->isXrechnung($parsed->customizationId) || ! $this->xrechnungRequiresSellerVatIdentifier($parsed)) {
+            return;
+        }
+        if (! filled($parsed->sellerVatId)) {
+            throw $this->businessRule('BR-DE-16', 'Seller VAT identifier (BT-31) is missing');
+        }
+    }
+
+    private function xrechnungRequiresSellerVatIdentifier(EInvoiceParseResult $parsed): bool
+    {
+        foreach ($parsed->lines as $line) {
+            if ($this->isSellerVatCategory($line['tax_category'] ?? null)) {
+                return true;
+            }
+        }
+        foreach ($parsed->vatBreakdown as $group) {
+            if ($this->isSellerVatCategory($group['category'])) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function isSellerVatCategory(mixed $category): bool
+    {
+        return in_array(strtoupper(trim((string) $category)), self::XR_SELLER_VAT_CATEGORIES, true);
     }
 
     private function assertVatBreakdown(EInvoiceParseResult $parsed): void

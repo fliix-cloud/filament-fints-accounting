@@ -13,6 +13,12 @@
   <cac:AccountingSupplierParty>
     <cac:Party><cbc:EndpointID schemeID="EM">seller@vendor.example</cbc:EndpointID>
       <cac:PartyName><cbc:Name>Vendor GmbH</cbc:Name></cac:PartyName>
+      <cac:PostalAddress>
+        <cbc:StreetName>Musterweg 1</cbc:StreetName>
+        <cbc:CityName>Berlin</cbc:CityName>
+        <cbc:PostalZone>10115</cbc:PostalZone>
+        <cac:Country><cbc:IdentificationCode>DE</cbc:IdentificationCode></cac:Country>
+      </cac:PostalAddress>
       <cac:PartyTaxScheme><cbc:CompanyID>DE999999999</cbc:CompanyID></cac:PartyTaxScheme>
       <cac:Contact>
         <cbc:Name>Buchhaltung</cbc:Name>

@@ -32,14 +32,14 @@ retention, procedures, and change documentation — not software alone.
 | Converted purchase-line binding | Intake-backed lines already carry `source_line_hash`; registration now **fails closed** if a `source_line_index` is present without its hash | Manual drafts without import metadata remain unbound by design |
 | F12 banking completeness controls | Catch-up drain, pending→booked promotion, balance evidence on sync runs, backlog inventory / ack, concurrent+SCA fail-closed resume | Green sync ≠ completeness while catch-up remains |
 | F6 core EUR paths | Exact money, discounts, credit notes, foreign currency rejected | Remaining edge cases → tax/accounting review (host) |
-| F7 subset (not full conformity) | AllowanceCharge supported subset; DE EUR EN 16931 category/rate mapping fail-closed; incoming schema + material BR gate including buyer, BG-23, CIUS, XRechnung electronic addresses, payment means, buyer reference, and seller contact | Full Schematron / certification deferred (below) |
+| F7 subset (not full conformity) | AllowanceCharge supported subset; DE EUR EN 16931 category/rate mapping fail-closed; incoming schema + material BR gate including buyer, BG-23, CIUS, XRechnung electronic addresses, payment means, buyer reference, seller contact, seller city/post code, and seller VAT identifier | Full Schematron / certification deferred (below) |
 | Audit chain / invoice evidence / anchors / dataset export | SHA-256 chain, journal snapshots, intake+artifact verification, external anchors, scoped dataset | Dataset ≠ host backup |
 
 ### DEFERRED (package) — with reason
 
 | Item | Reason |
 | --- | --- |
-| **F7 full EN 16931 Schematron / certification** | Incoming intake now runs a documented **reception subset** schema + material BR gate (buyer, BG-23, CIUS, XRechnung electronic addresses, payment means, buyer reference, seller contact — below). Full CEN Schematron, KoSIT/XRechnung certification, Peppol Access Point, and a complete BR engine remain a separate e-invoice conformity track. Unsupported or mismatching input must remain preserved and visible, not booked. |
+| **F7 full EN 16931 Schematron / certification** | Incoming intake now runs a documented **reception subset** schema + material BR gate (buyer, BG-23, CIUS, XRechnung electronic addresses, payment means, buyer reference, seller contact, seller city/post code, seller VAT identifier — below). Full CEN Schematron, KoSIT/XRechnung certification, Peppol Access Point, and a complete BR engine remain a separate e-invoice conformity track. Unsupported or mismatching input must remain preserved and visible, not booked. |
 | Exhaustive ORM/SQL/storage privilege proof | Package Gates cannot stop privileged DB/storage admins; residual is host | 
 | Complete master-data historical-change archive for every catalog/party edit | Connection-consistency controls exist; full change-evidence productization deferred | 
 | Foreign-currency bookkeeping | Explicitly unsupported | 
@@ -80,6 +80,8 @@ This is **not** a claim of full EN 16931, XRechnung, or ZUGFeRD certification.
   - Payment means for XRechnung CIUS: BR-DE-13 at least one BG-16 with BT-81 in `{30,48,49,54,57,58,59}`; BR-DE-23 credit transfer (30/58) requires payee IBAN BT-84; BR-DE-25 direct debit (49/59) requires debtor IBAN BT-91.
   - Buyer reference BT-10 / BR-DE-15: required when the CIUS is XRechnung (non-empty `BuyerReference` / CII `BuyerReference`).
   - Seller contact BG-6 for XRechnung CIUS: BR-DE-2 group presence; BR-DE-5 contact point (BT-41), BR-DE-6 telephone (BT-42), BR-DE-7 email (BT-43).
+  - Seller postal address for XRechnung CIUS: BR-DE-3 city (BT-37) and BR-DE-4 post code (BT-38). Values come from the parsed seller address (UBL `PostalAddress/CityName` and `PostalZone`, CII `PostalTradeAddress/CityName` and `PostcodeCode`). Seller address line 1 (BT-35) stays optional. EN 16931 core without an XRechnung CIUS does not require these fields.
+  - Seller VAT identifier for XRechnung CIUS: BR-DE-16 requires a non-empty seller VAT identifier (BT-31) when an invoice line or the VAT breakdown uses category S, Z, E, AE, K, G, L, or M. This check is presence only; it does not validate identifier format. The value is the parsed seller VAT id (UBL `PartyTaxScheme/CompanyID`, CII `SpecifiedTaxRegistration` scheme `VA`, with the existing CII fallback to scheme `FC` / BT-32). EN 16931 core without an XRechnung CIUS does not require it.
   - Tax category/rate mapping onto `DE-19`, `DE-7`, `DE-0`, `DE-RC`, `DE-IG-ACQ`, `DE-EXPORT` (plus temporary 16%/5%); unknown or inconsistent pairs fail closed; foreign VAT rejected.
 - AllowanceCharge: detect UBL/CII line- and document-level charges; import shapes whose nets already reconcile into line totals; fail closed otherwise while keeping intake evidence.
 - Local XML/PDF checks and ZUGFeRD generation helpers (outbound generation still uses horstoeko XSD + object validators).
@@ -88,7 +90,7 @@ A successful import records `e_invoice_meta.validation_status = de_eur_subset_pa
 
 **Out of scope / deferred:**
 
-- Full EN 16931 Schematron / complete business-rule engines (remaining BR-DE such as seller city/postcode BR-DE-3/4, seller VAT BR-DE-16, full EAS codelist, card/mandate details, EXTENDED `#conformant#` profiles, …).
+- Full EN 16931 Schematron / complete business-rule engines (remaining items such as BR-DE-16 alternative BG-11 seller tax representative, VAT-identifier format, full EAS codelist, card/mandate details, EXTENDED `#conformant#` profiles, …).
 - Full OASIS UBL 2.1 XSD (TaxScheme, PayableAmount, and other official-required nodes that the current import subset schema does not demand).
 - Peppol Access Point, KoSIT validator, XRechnung/ZUGFeRD certification, and outbound XRechnung issuing.
 - Allowance/charge shapes outside the supported subset.

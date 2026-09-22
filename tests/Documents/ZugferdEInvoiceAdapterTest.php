@@ -80,6 +80,8 @@ class ZugferdEInvoiceAdapterTest extends TestCase
         $this->assertSame(2250, $parsed->taxMinor);
         $this->assertSame(17250, $parsed->grossMinor);
         $this->assertSame('DE123456789', $parsed->sellerVatId);
+        $this->assertSame('Berlin', $parsed->sellerCity);
+        $this->assertSame('10115', $parsed->sellerPostalCode);
         $this->assertSame('Seller GmbH', $parsed->sellerName);
         $this->assertSame('Buyer GmbH', $parsed->buyerName);
         $this->assertSame('DE', $parsed->buyerCountryCode);
