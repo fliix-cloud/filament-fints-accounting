@@ -318,7 +318,7 @@ class IncomingEInvoiceConformityTest extends TestCase
         ];
         yield 'XRechnung missing seller VAT identifier' => [
             'br-xrechnung-missing-seller-vat.xml',
-            'BR-DE-16: Seller VAT identifier (BT-31) is missing',
+            'BR-DE-16: Seller VAT identifier (BT-31) or seller tax representative (BG-11) is missing',
         ];
         yield 'XRechnung blank seller city' => [
             'br-xrechnung-blank-seller-city.xml',
@@ -326,8 +326,57 @@ class IncomingEInvoiceConformityTest extends TestCase
         ];
         yield 'XRechnung blank seller VAT identifier' => [
             'br-xrechnung-blank-seller-vat.xml',
-            'BR-DE-16: Seller VAT identifier (BT-31) is missing',
+            'BR-DE-16: Seller VAT identifier (BT-31) or seller tax representative (BG-11) is missing',
         ];
+        yield 'XRechnung invalid seller VAT format' => [
+            'br-xrechnung-invalid-seller-vat.xml',
+            'BR-CO-09: Seller VAT identifier (BT-31) has an invalid format',
+        ];
+        yield 'XRechnung invalid tax representative VAT format' => [
+            'br-xrechnung-invalid-tax-representative-vat.xml',
+            'BR-CO-09: Seller tax representative VAT identifier (BT-63) has an invalid format',
+        ];
+        yield 'XRechnung unknown endpoint scheme' => [
+            'br-xrechnung-unknown-eas.xml',
+            'BR-CL-25: Seller electronic address (BT-34) scheme identifier is not in the documented EAS subset',
+        ];
+        yield 'XRechnung incomplete tax representative' => [
+            'br-xrechnung-incomplete-tax-representative.xml',
+            'BR-DE-16: Seller tax representative VAT identifier (BT-63) is missing',
+        ];
+    }
+
+    #[Test]
+    public function xrechnung_tax_representative_and_documented_eas_scheme_import(): void
+    {
+        $entity = $this->makeEntity();
+        $this->actingAs($this->makeUser());
+
+        $ubl = $this->ublFixture('xrechnung-bg11-instead-of-seller-vat.xml');
+        $parsed = app(UblEInvoiceParser::class)->parse($ubl, 'xrechnung-bg11-instead-of-seller-vat.xml');
+        $this->assertFalse(filled($parsed->sellerVatId));
+        $this->assertSame('Steuervertretung GmbH', $parsed->sellerTaxRepresentativeName);
+        $this->assertSame('DE111111111', $parsed->sellerTaxRepresentativeVatId);
+        $this->assertSame('DE', $parsed->sellerTaxRepresentativeCountryCode);
+        $ublResult = app(ImportPurchaseInvoice::class)->handle($entity, 'xrechnung-bg11-instead-of-seller-vat.xml', $ubl);
+        $this->assertSame('de_eur_subset_passed', $ublResult->document->e_invoice_meta['validation_status']);
+
+        $eas = $this->ublFixture('xrechnung-eas-9930.xml');
+        $easParsed = app(UblEInvoiceParser::class)->parse($eas, 'xrechnung-eas-9930.xml');
+        $this->assertSame('9930', $easParsed->sellerElectronicAddressScheme);
+        $this->assertSame('9930', $easParsed->buyerElectronicAddressScheme);
+        $easResult = app(ImportPurchaseInvoice::class)->handle($entity, 'xrechnung-eas-9930.xml', $eas);
+        $this->assertSame('de_eur_subset_passed', $easResult->document->e_invoice_meta['validation_status']);
+
+        $cii = $this->fixture('cii', 'xrechnung-bg11-s19.xml');
+        $ciiParsed = app(ZugferdEInvoiceAdapter::class)->parse($cii, 'xrechnung-bg11-s19.xml');
+        $this->assertFalse(filled($ciiParsed->sellerVatId));
+        $this->assertSame('Steuervertretung GmbH', $ciiParsed->sellerTaxRepresentativeName);
+        $this->assertSame('DE111111111', $ciiParsed->sellerTaxRepresentativeVatId);
+        $this->assertSame('DE', $ciiParsed->sellerTaxRepresentativeCountryCode);
+        $ciiResult = app(ImportPurchaseInvoice::class)->handle($entity, 'xrechnung-bg11-s19.xml', $cii);
+        $this->assertSame('de_eur_subset_passed', $ciiResult->document->e_invoice_meta['validation_status']);
+        $this->assertSame(3, PurchaseInvoiceIntake::query()->where('status', 'complete')->count());
     }
 
     #[Test]

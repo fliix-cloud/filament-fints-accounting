@@ -120,7 +120,31 @@ final class ZugferdEInvoiceAdapter implements EInvoiceAdapter
 
         $taxReg = null;
         $reader->getDocumentSellerTaxRegistration($taxReg);
-        $vatId = is_array($taxReg) ? ($taxReg['VA'] ?? $taxReg['FC'] ?? null) : null;
+        $vatId = is_array($taxReg) ? ($taxReg['VA'] ?? null) : null;
+
+        $representativeName = null;
+        $representativeIds = null;
+        $representativeDescription = null;
+        $reader->getDocumentSellerTaxRepresentative($representativeName, $representativeIds, $representativeDescription);
+        $representativeTax = null;
+        $reader->getDocumentSellerTaxRepresentativeTaxRegistration($representativeTax);
+        $representativeVatId = is_array($representativeTax) ? ($representativeTax['VA'] ?? null) : null;
+        $representativeLineOne = null;
+        $representativeLineTwo = null;
+        $representativeLineThree = null;
+        $representativePostcode = null;
+        $representativeCity = null;
+        $representativeCountry = null;
+        $representativeSubdivision = null;
+        $reader->getDocumentSellerTaxRepresentativeAddress(
+            $representativeLineOne,
+            $representativeLineTwo,
+            $representativeLineThree,
+            $representativePostcode,
+            $representativeCity,
+            $representativeCountry,
+            $representativeSubdivision,
+        );
 
         $grand = null;
         $lineTotal = null;
@@ -270,7 +294,7 @@ final class ZugferdEInvoiceAdapter implements EInvoiceAdapter
             netMinor: $net,
             taxMinor: $tax,
             sellerName: $sellerName,
-            sellerVatId: is_scalar($vatId) ? (string) $vatId : null,
+            sellerVatId: filled($vatId) ? trim((string) $vatId) : null,
             lines: $lines,
             originalXml: $contents,
             sha256: $hash,
@@ -302,6 +326,9 @@ final class ZugferdEInvoiceAdapter implements EInvoiceAdapter
             sellerContactName: filled($sellerContactName) ? (string) $sellerContactName : null,
             sellerContactPhone: filled($sellerContactPhone) ? (string) $sellerContactPhone : null,
             sellerContactEmail: filled($sellerContactEmail) ? (string) $sellerContactEmail : null,
+            sellerTaxRepresentativeName: filled($representativeName) ? trim((string) $representativeName) : null,
+            sellerTaxRepresentativeVatId: filled($representativeVatId) ? trim((string) $representativeVatId) : null,
+            sellerTaxRepresentativeCountryCode: filled($representativeCountry) ? trim((string) $representativeCountry) : null,
         );
     }
 

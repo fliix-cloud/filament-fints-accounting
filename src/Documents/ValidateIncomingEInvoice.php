@@ -16,8 +16,9 @@ use horstoeko\zugferd\ZugferdSettings;
  *
  * This is a documented subset gate (schema + material BRs including buyer,
  * BG-23, CIUS identifiers, XRechnung electronic addresses, payment means,
- * buyer reference, seller contact, seller city/post code, and seller VAT
- * identifier).
+ * buyer reference, seller contact, seller city/post code, seller VAT
+ * identifier or tax representative, VAT identifier shape, and a documented
+ * EAS scheme subset).
  * It is not a full Schematron / XRechnung / ZUGFeRD certification engine.
  */
 final class ValidateIncomingEInvoice
@@ -52,6 +53,17 @@ final class ValidateIncomingEInvoice
 
     /** @var list<string> */
     private const DIRECT_DEBIT_CODES = ['49', '59'];
+
+    /**
+     * Documented electronic-address schemes for XRechnung and Peppol BIS Billing 3.0 XML.
+     * This is the German-relevant slice of the CEF EAS code list, not the full list.
+     *
+     * EM electronic mail, 0060 DUNS, 0088 GS1 GLN, 0204 Leitweg-ID,
+     * 0246 German Electronic Business Address, 9930 German VAT number.
+     *
+     * @var list<string>
+     */
+    private const EAS_SCHEMES = ['EM', '0060', '0088', '0204', '0246', '9930'];
 
     /**
      * VAT category codes that trigger XRechnung BR-DE-16 (S, Z, E, AE, K, G, L, M).
@@ -264,6 +276,9 @@ final class ValidateIncomingEInvoice
         if (! filled($scheme)) {
             throw $this->businessRule('BR-62', $label.' shall have a scheme identifier');
         }
+        if (! in_array(strtoupper(trim($scheme)), self::EAS_SCHEMES, true)) {
+            throw $this->businessRule('BR-CL-25', $label.' scheme identifier is not in the documented EAS subset');
+        }
     }
 
     private function assertXrechnungPaymentMeans(EInvoiceParseResult $parsed): void
@@ -344,12 +359,67 @@ final class ValidateIncomingEInvoice
 
     private function assertXrechnungSellerVatIdentifier(EInvoiceParseResult $parsed): void
     {
+        if (filled($parsed->sellerVatId)) {
+            $this->assertVatIdentifierFormat('Seller VAT identifier (BT-31)', (string) $parsed->sellerVatId);
+        }
+        $this->assertTaxRepresentative($parsed);
+
         if (! $this->isXrechnung($parsed->customizationId) || ! $this->xrechnungRequiresSellerVatIdentifier($parsed)) {
             return;
         }
-        if (! filled($parsed->sellerVatId)) {
-            throw $this->businessRule('BR-DE-16', 'Seller VAT identifier (BT-31) is missing');
+        if (! filled($parsed->sellerVatId) && ! $this->hasCompleteTaxRepresentative($parsed)) {
+            throw $this->businessRule(
+                'BR-DE-16',
+                'Seller VAT identifier (BT-31) or seller tax representative (BG-11) is missing',
+            );
         }
+    }
+
+    private function assertTaxRepresentative(EInvoiceParseResult $parsed): void
+    {
+        $name = $parsed->sellerTaxRepresentativeName;
+        $vatId = $parsed->sellerTaxRepresentativeVatId;
+        $country = strtoupper(trim((string) $parsed->sellerTaxRepresentativeCountryCode));
+        if (! filled($name) && ! filled($vatId) && $country === '') {
+            return;
+        }
+        if (! filled($name)) {
+            throw $this->businessRule('BR-18', 'Seller tax representative name (BT-62) is missing');
+        }
+        if (! filled($vatId)) {
+            throw $this->businessRule('BR-DE-16', 'Seller tax representative VAT identifier (BT-63) is missing');
+        }
+        $this->assertVatIdentifierFormat('Seller tax representative VAT identifier (BT-63)', (string) $vatId);
+        if (preg_match('/^[A-Z]{2}$/', $country) !== 1) {
+            throw $this->businessRule('BR-20', 'Seller tax representative country code (BT-70) is missing');
+        }
+    }
+
+    private function hasCompleteTaxRepresentative(EInvoiceParseResult $parsed): bool
+    {
+        return filled($parsed->sellerTaxRepresentativeName)
+            && filled($parsed->sellerTaxRepresentativeVatId)
+            && $this->vatIdentifierIsValid((string) $parsed->sellerTaxRepresentativeVatId)
+            && preg_match('/^[A-Z]{2}$/', strtoupper(trim((string) $parsed->sellerTaxRepresentativeCountryCode))) === 1;
+    }
+
+    private function assertVatIdentifierFormat(string $label, string $value): void
+    {
+        if ($this->vatIdentifierIsValid($value)) {
+            return;
+        }
+
+        throw $this->businessRule('BR-CO-09', $label.' has an invalid format');
+    }
+
+    private function vatIdentifierIsValid(string $value): bool
+    {
+        $normalized = strtoupper((string) preg_replace('/\s+/', '', trim($value)));
+        if (str_starts_with($normalized, 'DE')) {
+            return preg_match('/^DE[0-9]{9}$/', $normalized) === 1;
+        }
+
+        return preg_match('/^(EL|[A-Z]{2})[A-Z0-9]{2,12}$/', $normalized) === 1;
     }
 
     private function xrechnungRequiresSellerVatIdentifier(EInvoiceParseResult $parsed): bool

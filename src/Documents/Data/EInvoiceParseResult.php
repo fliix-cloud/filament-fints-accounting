@@ -53,5 +53,8 @@ final readonly class EInvoiceParseResult
         public ?string $sellerContactName = null,
         public ?string $sellerContactPhone = null,
         public ?string $sellerContactEmail = null,
+        public ?string $sellerTaxRepresentativeName = null,
+        public ?string $sellerTaxRepresentativeVatId = null,
+        public ?string $sellerTaxRepresentativeCountryCode = null,
     ) {}
 }
