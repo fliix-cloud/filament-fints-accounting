@@ -176,10 +176,15 @@ class IncomingEInvoiceConformityTest extends TestCase
     {
         $entity = $this->makeEntity();
         $this->actingAs($this->makeUser());
-        $xml = app(ZugferdEInvoiceAdapter::class)->generate([
-            ...$this->ciiSnapshot(),
-            'e_invoice_profile' => 'xrechnung_3',
-        ]);
+        $snapshot = $this->ciiSnapshot();
+        $snapshot['e_invoice_profile'] = 'xrechnung_3';
+        $snapshot['buyer_reference'] = 'BUYER-REF-1';
+        $snapshot['seller']['invoice_contact_name'] = 'Buchhaltung';
+        $snapshot['seller']['phone'] = '+493012345678';
+        $snapshot['seller']['email'] = 'seller@vendor.example';
+        $snapshot['seller']['invoice_iban'] = 'DE89370400440532013000';
+        $snapshot['buyer']['email'] = 'buyer@customer.example';
+        $xml = app(ZugferdEInvoiceAdapter::class)->generate($snapshot);
 
         $result = app(ImportPurchaseInvoice::class)->handle($entity, 'cii-xrechnung-3.xml', $xml);
 
