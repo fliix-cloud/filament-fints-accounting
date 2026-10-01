@@ -22,6 +22,17 @@ class CsvFormulaTest extends TestCase
     }
 
     #[Test]
+    public function unescape_restores_every_escaped_value_exactly(): void
+    {
+        foreach (['=SUM(A1)', '+1', '-5.00', '@cmd', "\tx", "'=x", "''+y", "'plain", 'Bank', ''] as $value) {
+            $this->assertSame($value, CsvFormula::unescape(CsvFormula::escape($value)), $value);
+        }
+
+        $this->assertSame("''=x", CsvFormula::escape("'=x"));
+        $this->assertSame("'plain", CsvFormula::escape("'plain"));
+    }
+
+    #[Test]
     public function journal_csv_does_not_emit_executable_formulas(): void
     {
         $entity = $this->makeEntity();

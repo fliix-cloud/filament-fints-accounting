@@ -7,6 +7,7 @@ use FilamentAccounting\Banking\FinTs\Models\BankSyncRun;
 use FilamentAccounting\Banking\FinTs\Services\AccountSyncService;
 use FilamentAccounting\Banking\FinTs\Services\BalanceSyncService;
 use FilamentAccounting\Banking\FinTs\Services\TransactionSyncService;
+use FilamentAccounting\Banking\FinTs\Support\ErrorMapper;
 use FilamentAccounting\Banking\FinTs\Support\ProductRegistration;
 use FilamentAccounting\Models\AccountingBankAccount as BankAccount;
 use Illuminate\Console\Command;
@@ -47,51 +48,84 @@ class SyncCommand extends Command
             $query->where('uuid', $uuid);
         }
 
-        $requestedFrom = $this->option('from');
+        $failed = 0;
 
         foreach ($query->get() as $connection) {
-            if ($doAccounts) {
-                $outcome = $accounts->sync($connection);
-                if ($outcome->requiresUser()) {
-                    $this->warn("Connection {$connection->uuid} needs SCA attention.");
-                }
+            if ($connection->blocksAutomaticLogin()) {
+                $this->warn("Connection {$connection->uuid} skipped: ".__('filament-accounting::banking/fints/errors.authentication_blocked'));
+
+                continue;
             }
 
-            $accountQuery = $connection->accounts()
-                ->where('is_available', true)
-                ->where('is_enabled', true);
-            if ($accountUuid = $this->option('account')) {
-                $accountQuery->where('uuid', $accountUuid);
+            // One failing bank must not starve the remaining connections.
+            try {
+                $this->syncConnection($connection, $accounts, $balances, $transactions, $doAccounts, $doBalances, $doTransactions);
+            } catch (\Throwable $e) {
+                $failed++;
+                report($e);
+                $this->error("Connection {$connection->uuid} failed: ".ErrorMapper::map($e)->userMessage());
             }
+        }
 
-            foreach ($accountQuery->get() as $account) {
-                if (! $account instanceof BankAccount) {
-                    continue;
-                }
-                if ($doBalances) {
-                    $balances->sync($account);
-                }
+        if ($failed > 0) {
+            $this->error("Synchronization finished with {$failed} failed connection(s).");
 
-                if ($doTransactions) {
-                    $from = $requestedFrom ? Carbon::parse($requestedFrom) : null;
-                    $to = $this->option('to') ? Carbon::parse($this->option('to')) : null;
-                    $drain = $this->shouldDrain($from, $to);
-                    if ($drain) {
-                        $result = $transactions->drainCatchUp($account);
-                        $this->reportDrain((int) $account->getKey(), $result);
-                        $this->warnIfEvidenceGap((int) $account->getKey());
-                    } else {
-                        $transactions->sync($account, $from, $to);
-                        $this->warnIfTruncated((int) $account->getKey());
-                        $this->warnIfEvidenceGap((int) $account->getKey());
-                    }
-                }
-            }
+            return self::FAILURE;
         }
 
         $this->info('Synchronization finished.');
 
         return self::SUCCESS;
+    }
+
+    private function syncConnection(
+        BankConnection $connection,
+        AccountSyncService $accounts,
+        BalanceSyncService $balances,
+        TransactionSyncService $transactions,
+        bool $doAccounts,
+        bool $doBalances,
+        bool $doTransactions,
+    ): void {
+        if ($doAccounts) {
+            $outcome = $accounts->sync($connection);
+            if ($outcome->requiresUser()) {
+                $this->warn("Connection {$connection->uuid} needs SCA attention.");
+            }
+        }
+
+        $accountQuery = $connection->accounts()
+            ->where('is_available', true)
+            ->where('is_enabled', true);
+        if ($accountUuid = $this->option('account')) {
+            $accountQuery->where('uuid', $accountUuid);
+        }
+
+        $requestedFrom = $this->option('from');
+
+        foreach ($accountQuery->get() as $account) {
+            if (! $account instanceof BankAccount) {
+                continue;
+            }
+            if ($doBalances) {
+                $balances->sync($account);
+            }
+
+            if ($doTransactions) {
+                $from = $requestedFrom ? Carbon::parse($requestedFrom) : null;
+                $to = $this->option('to') ? Carbon::parse($this->option('to')) : null;
+                $drain = $this->shouldDrain($from, $to);
+                if ($drain) {
+                    $result = $transactions->drainCatchUp($account);
+                    $this->reportDrain((int) $account->getKey(), $result);
+                    $this->warnIfEvidenceGap((int) $account->getKey());
+                } else {
+                    $transactions->sync($account, $from, $to);
+                    $this->warnIfTruncated((int) $account->getKey());
+                    $this->warnIfEvidenceGap((int) $account->getKey());
+                }
+            }
+        }
     }
 
     /**

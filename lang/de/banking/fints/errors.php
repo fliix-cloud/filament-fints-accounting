@@ -4,6 +4,7 @@ return [
     'generic' => 'Die Bankanfrage konnte nicht abgeschlossen werden.',
     'configuration' => 'Die FinTS-Produktregistrierung fehlt oder ist ungültig.',
     'authentication' => 'Die Anmeldung bei der Bank ist fehlgeschlagen.',
+    'authentication_blocked' => 'Die letzte Anmeldung bei der Bank wurde abgelehnt. Automatische Anmeldungen sind pausiert, damit die PIN nicht gesperrt wird. Bitte Zugangsdaten prüfen und die Verbindung testen.',
     'unsupported_capability' => 'Dieser Vorgang wird für die gewählte Bank oder das Konto nicht unterstützt.',
     'unsupported_direct_debit_pain' => 'Die Bank bietet für Lastschriften kein PAIN-Format an, das dieses Paket sicher erzeugen kann.',
     'account_not_usable' => 'Dieses Konto ist in Filament nicht zur Nutzung aktiviert.',

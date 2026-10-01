@@ -32,6 +32,10 @@ final class FakeFintsClient implements FintsClient, ProvidesCamtStatementSchemas
 
     public bool $openDialog = false;
 
+    public int $loginCalls = 0;
+
+    public ?\Throwable $loginFailure = null;
+
     public ?string $lastPersistedInstance = null;
 
     /** @var list<string> */
@@ -45,6 +49,11 @@ final class FakeFintsClient implements FintsClient, ProvidesCamtStatementSchemas
 
     public function login(): BaseAction
     {
+        $this->loginCalls++;
+        if ($this->loginFailure instanceof \Throwable) {
+            throw $this->loginFailure;
+        }
+
         $this->openDialog = true;
         $action = new FakeAction;
         $action->markDone('login-ok');

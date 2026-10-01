@@ -7,7 +7,7 @@ use FilamentAccounting\Models\LegalEntity;
 use FilamentAccounting\Ownership\LegalEntityScope;
 use Illuminate\Support\Facades\Route;
 
-Route::middleware(['web', 'auth'])
+Route::middleware(['web', 'auth', 'signed'])
     ->name('filament-accounting.')
     ->group(function (): void {
         Route::get('accounting/audit/export/{legalEntity}', function (LegalEntity $legalEntity, LegalEntityScope $scope) {

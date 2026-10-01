@@ -11,6 +11,7 @@ use FilamentAccounting\Banking\FinTs\Enums\BankConnectionStatus;
 use FilamentAccounting\Banking\FinTs\Enums\ScaOperationType;
 use FilamentAccounting\Banking\FinTs\Enums\ScaSessionState;
 use FilamentAccounting\Banking\FinTs\Events\BankConnectionTested;
+use FilamentAccounting\Banking\FinTs\Exceptions\AuthenticationException;
 use FilamentAccounting\Banking\FinTs\Exceptions\FintsValidationException;
 use FilamentAccounting\Banking\FinTs\Models\BankConnection;
 use FilamentAccounting\Banking\FinTs\Support\BankQuirks;
@@ -58,9 +59,13 @@ class BankConnectionService
             return new ScaOutcome(ScaSessionState::Done);
         } catch (\Throwable $e) {
             $mapped = ErrorMapper::map($e);
-            $connection->status = BankConnectionStatus::Error;
-            $connection->last_error_message = $mapped->userMessage();
-            $connection->save();
+            if ($mapped instanceof AuthenticationException) {
+                $connection->markAuthenticationFailed($mapped->userMessage());
+            } else {
+                $connection->status = BankConnectionStatus::Error;
+                $connection->last_error_message = $mapped->userMessage();
+                $connection->save();
+            }
             event(new BankConnectionTested($connection->id, false));
             throw $mapped;
         }
