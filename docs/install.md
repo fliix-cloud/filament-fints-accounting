@@ -132,6 +132,17 @@ php artisan filament-accounting:sync-institutes
 php artisan filament-accounting:sync-bank --connection=BANKVERBINDUNGS_UUID --accounts --balances --transactions
 ```
 
+Das Bankverzeichnis wird standardmäßig aus einem geprüften, festen Commit von
+`hbci4j/hbci4java` geladen (Stand 21.08.2026). `sync-institutes` meldet jeden
+geänderten PIN/TAN-Endpunkt und ignoriert ungültige Endpunkte. Geänderte
+Endpunkte vor der nächsten Anmeldung mit den Angaben der Bank abgleichen. Für
+neuere Daten die Upstream-Änderungen prüfen und `FINTS_INSTITUTES_URL` auf den
+neuen Commit setzen.
+
+Nach einer von der Bank abgelehnten Anmeldung (z. B. falsche PIN) pausiert das
+Paket alle automatischen Anmeldungen dieser Verbindung, damit die PIN nicht
+gesperrt wird. Erst ein erfolgreicher Verbindungstest im Panel hebt die Sperre auf.
+
 Bankzugang, TAN-Verfahren und SCA werden im Panel eingerichtet. Eine
 Synchronisation beweist noch keine lückenlose Historie; die Reichweite und
 Nachholgrenzen sind in [Operations](operations.md) beschrieben.

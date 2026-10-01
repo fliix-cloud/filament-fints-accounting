@@ -15,6 +15,7 @@ use FilamentAccounting\Banking\FinTs\Support\AccountFingerprint;
 use FilamentAccounting\Banking\FinTs\Support\ErrorMapper;
 use FilamentAccounting\Contracts\AccountingAuthorizer;
 use FilamentAccounting\Models\AccountingBankAccount as BankAccount;
+use FilamentAccounting\Ownership\LegalEntityScope;
 use Illuminate\Database\Eloquent\Model;
 
 class AccountSyncService
@@ -23,11 +24,13 @@ class AccountSyncService
         private readonly FintsClientFactory $factory,
         private readonly StrongAuthenticationCoordinator $sca,
         private readonly AccountingAuthorizer $authorizer,
+        private readonly LegalEntityScope $entities,
     ) {}
 
     public function sync(BankConnection $connection, ?Model $actor = null, ?string $returnUrl = null): ScaOutcome
     {
         $this->authorizer->authorize('sync_bank', $connection);
+        $this->entities->assertModel($connection);
         $run = BankSyncRun::query()->create([
             'bank_connection_id' => $connection->id,
             'type' => SyncType::Accounts,

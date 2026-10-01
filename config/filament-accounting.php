@@ -118,7 +118,9 @@ return [
     'banking' => [
         'fints' => [
             'institutes' => [
-                'url' => env('FINTS_INSTITUTES_URL', 'https://raw.githubusercontent.com/hbci4j/hbci4java/master/src/main/resources/blz.properties'),
+                // Pinned to a reviewed upstream commit: this list decides where users send
+                // their banking PIN. Review the upstream diff before moving the pin.
+                'url' => env('FINTS_INSTITUTES_URL', 'https://raw.githubusercontent.com/hbci4j/hbci4java/e8e8798552b10b13733c3beaf0dbc947e608c719/src/main/resources/blz.properties'),
                 'timeout' => (int) env('FINTS_INSTITUTES_TIMEOUT', 30),
             ],
             'product' => [

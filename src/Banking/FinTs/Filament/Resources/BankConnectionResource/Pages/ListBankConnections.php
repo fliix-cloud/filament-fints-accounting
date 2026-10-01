@@ -4,10 +4,10 @@ namespace FilamentAccounting\Banking\FinTs\Filament\Resources\BankConnectionReso
 
 use Filament\Actions\Action;
 use Filament\Actions\CreateAction;
-use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ListRecords;
 use FilamentAccounting\Banking\FinTs\Filament\Resources\BankConnectionResource;
 use FilamentAccounting\Banking\FinTs\Services\InstituteDirectoryService;
+use FilamentAccounting\Banking\FinTs\Support\FintsUi;
 use FilamentAccounting\Contracts\AccountingAuthorizer as BankAuthorizer;
 
 class ListBankConnections extends ListRecords
@@ -22,14 +22,7 @@ class ListBankConnections extends ListRecords
                 ->visible(fn (): bool => app(BankAuthorizer::class)->can('manage_bank_connections'))
                 ->action(function (InstituteDirectoryService $directory): void {
                     app(BankAuthorizer::class)->authorize('manage_bank_connections');
-                    $result = $directory->sync();
-                    Notification::make()
-                        ->title(__('filament-accounting::banking/fints/notifications.institutes_synced'))
-                        ->body(__('filament-accounting::banking/fints/notifications.institutes_synced_body', [
-                            'count' => $result['with_pin_tan'],
-                        ]))
-                        ->success()
-                        ->send();
+                    FintsUi::notifyInstitutesSynced($directory->sync());
                 }),
             CreateAction::make(),
         ];

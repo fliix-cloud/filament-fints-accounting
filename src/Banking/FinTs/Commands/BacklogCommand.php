@@ -4,6 +4,7 @@ namespace FilamentAccounting\Banking\FinTs\Commands;
 
 use FilamentAccounting\Banking\FinTs\Models\BankSyncRun;
 use FilamentAccounting\Banking\FinTs\Services\BankingBacklogService;
+use FilamentAccounting\Contracts\AccountingTenancyContextActivator;
 use FilamentAccounting\Models\LegalEntity;
 use Illuminate\Console\Command;
 
@@ -18,7 +19,7 @@ class BacklogCommand extends Command
 
     protected $description = 'List open banking sync/intake backlog; fail closed when unresolved work remains';
 
-    public function handle(BankingBacklogService $backlog): int
+    public function handle(BankingBacklogService $backlog, AccountingTenancyContextActivator $activator): int
     {
         try {
             $legalEntityId = $this->resolveLegalEntityId();
@@ -41,6 +42,7 @@ class BacklogCommand extends Command
             }
 
             try {
+                $activator->activate(LegalEntity::class, (string) $run->legal_entity_id);
                 $backlog->acknowledgeSyncRun($run, $this->option('ack-note') ?: null);
                 $this->info("Acknowledged sync run {$ackUuid}.");
             } catch (\InvalidArgumentException $exception) {
@@ -51,7 +53,15 @@ class BacklogCommand extends Command
         }
 
         if ($this->option('continue')) {
-            $results = $backlog->continueCatchUp($legalEntityId);
+            // Services enforce the company boundary; drain one company at a time.
+            $entityIds = $legalEntityId !== null
+                ? [$legalEntityId]
+                : $backlog->catchUpAccountsQuery()->reorder()->distinct()->pluck('legal_entity_id')->all();
+            $results = [];
+            foreach ($entityIds as $entityId) {
+                $activator->activate(LegalEntity::class, (string) $entityId);
+                array_push($results, ...$backlog->continueCatchUp((int) $entityId));
+            }
             if ($results === []) {
                 $this->info('No catch-up markers to continue.');
             }

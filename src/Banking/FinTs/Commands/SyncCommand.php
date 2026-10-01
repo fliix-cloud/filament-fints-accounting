@@ -9,7 +9,9 @@ use FilamentAccounting\Banking\FinTs\Services\BalanceSyncService;
 use FilamentAccounting\Banking\FinTs\Services\TransactionSyncService;
 use FilamentAccounting\Banking\FinTs\Support\ErrorMapper;
 use FilamentAccounting\Banking\FinTs\Support\ProductRegistration;
+use FilamentAccounting\Contracts\AccountingTenancyContextActivator;
 use FilamentAccounting\Models\AccountingBankAccount as BankAccount;
+use FilamentAccounting\Models\LegalEntity;
 use Illuminate\Console\Command;
 use Illuminate\Support\Carbon;
 
@@ -32,6 +34,7 @@ class SyncCommand extends Command
         AccountSyncService $accounts,
         BalanceSyncService $balances,
         TransactionSyncService $transactions,
+        AccountingTenancyContextActivator $activator,
     ): int {
         if (! ProductRegistration::isConfigured()) {
             $this->error(__('filament-accounting::banking/fints/notifications.product_id_missing'));
@@ -59,6 +62,9 @@ class SyncCommand extends Command
 
             // One failing bank must not starve the remaining connections.
             try {
+                // Services enforce the company boundary; enter each connection's company first.
+                $activator->activate(LegalEntity::class, (string) $connection->legal_entity_id);
+
                 $this->syncConnection($connection, $accounts, $balances, $transactions, $doAccounts, $doBalances, $doTransactions);
             } catch (\Throwable $e) {
                 $failed++;

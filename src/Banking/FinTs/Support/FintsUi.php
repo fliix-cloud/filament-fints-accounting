@@ -56,4 +56,30 @@ final class FintsUi
 
         $notification->send();
     }
+
+    /** @param array{with_pin_tan: int, rejected: list<string>, changed: list<array{bank_code: string, from: string, to: string}>} $result */
+    public static function notifyInstitutesSynced(array $result): void
+    {
+        $body = __('filament-accounting::banking/fints/notifications.institutes_synced_body', ['count' => $result['with_pin_tan']]);
+        $suspicious = $result['changed'] !== [] || $result['rejected'] !== [];
+
+        if ($result['changed'] !== []) {
+            $body .= ' '.__('filament-accounting::banking/fints/notifications.institutes_endpoints_changed', [
+                'count' => count($result['changed']),
+                'codes' => implode(', ', array_column($result['changed'], 'bank_code')),
+            ]);
+        }
+
+        if ($result['rejected'] !== []) {
+            $body .= ' '.__('filament-accounting::banking/fints/notifications.institutes_endpoints_rejected', [
+                'count' => count($result['rejected']),
+            ]);
+        }
+
+        $notification = Notification::make()
+            ->title(__('filament-accounting::banking/fints/notifications.institutes_synced'))
+            ->body($body);
+
+        ($suspicious ? $notification->warning()->persistent() : $notification->success())->send();
+    }
 }

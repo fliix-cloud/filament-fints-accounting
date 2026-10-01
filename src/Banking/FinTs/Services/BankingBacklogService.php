@@ -8,6 +8,7 @@ use FilamentAccounting\Contracts\AccountingAuthorizer;
 use FilamentAccounting\Models\AccountingBankAccount;
 use FilamentAccounting\Models\BankStatementLine;
 use FilamentAccounting\Models\PurchaseInvoiceIntake;
+use FilamentAccounting\Ownership\LegalEntityScope;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -27,6 +28,7 @@ class BankingBacklogService
 
     public function __construct(
         private readonly AccountingAuthorizer $authorizer,
+        private readonly LegalEntityScope $entities,
     ) {}
 
     /**
@@ -146,6 +148,7 @@ class BankingBacklogService
     public function acknowledgeSyncRun(BankSyncRun $run, ?string $note = null): BankSyncRun
     {
         $this->authorizer->authorize('sync_bank', $run->account ?? $run);
+        $this->entities->assertModel($run);
         if (! in_array($run->status, [SyncStatus::Failed, SyncStatus::RequiresAttention, SyncStatus::Completed], true)) {
             throw new \InvalidArgumentException('Only failed, attention, or completed (evidence gap) runs can be acknowledged.');
         }

@@ -22,6 +22,7 @@ use FilamentAccounting\Banking\Services\UnifiedBankTransactionImporter;
 use FilamentAccounting\Contracts\AccountingAuthorizer;
 use FilamentAccounting\Models\AccountingBankAccount;
 use FilamentAccounting\Models\BankStatementLine;
+use FilamentAccounting\Ownership\LegalEntityScope;
 use FilamentAccounting\Support\ExactMoney;
 use FilamentAccounting\Support\Sepa;
 use Illuminate\Database\Eloquent\Model;
@@ -36,6 +37,7 @@ class TransactionSyncService
         private readonly StatementActionFactory $statementActions,
         private readonly StatementBalanceReconciler $balanceReconciler,
         private readonly AccountingAuthorizer $authorizer,
+        private readonly LegalEntityScope $entities,
     ) {}
 
     public function sync(
@@ -46,6 +48,7 @@ class TransactionSyncService
         ?string $returnUrl = null,
     ): ScaOutcome {
         $this->authorizer->authorize('sync_bank', $account);
+        $this->entities->assertModel($account);
         $this->assertUsable($account);
         $connection = $account->connection;
         if (! $connection instanceof BankConnection) {

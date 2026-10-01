@@ -2,6 +2,7 @@
 
 namespace FilamentAccounting\Banking\FinTs\Services;
 
+use FilamentAccounting\Banking\FinTs\Exceptions\FintsValidationException;
 use FilamentAccounting\Banking\FinTs\Exceptions\NetworkException;
 use FilamentAccounting\Banking\FinTs\Models\BankInstitute;
 use FilamentAccounting\Banking\FinTs\Support\BankQuirks;
@@ -11,7 +12,10 @@ use Illuminate\Support\Facades\Http;
 class InstituteDirectoryService
 {
     /**
-     * @return array{imported: int, with_pin_tan: int, skipped: int}
+     * The directory decides where users send their banking PIN, so every
+     * endpoint is validated and every changed endpoint is reported.
+     *
+     * @return array{imported: int, with_pin_tan: int, skipped: int, rejected: list<string>, changed: list<array{bank_code: string, from: string, to: string}>}
      */
     public function sync(?string $url = null, bool $includeWithoutEndpoint = false): array
     {
@@ -22,6 +26,8 @@ class InstituteDirectoryService
         $imported = 0;
         $withPinTan = 0;
         $skipped = 0;
+        $rejected = [];
+        $changed = [];
 
         foreach ($rows as $row) {
             if (! $includeWithoutEndpoint && ($row['pin_tan_url'] ?? '') === '') {
@@ -31,9 +37,25 @@ class InstituteDirectoryService
             }
 
             $urlValue = $row['pin_tan_url'] !== '' ? $row['pin_tan_url'] : null;
+            if ($urlValue !== null) {
+                try {
+                    $urlValue = EndpointValidator::validateSyntax($urlValue);
+                } catch (FintsValidationException) {
+                    // Keep the previously imported entry untouched.
+                    $rejected[] = $row['bank_code'];
+
+                    continue;
+                }
+            }
+
             $bankCode = $urlValue !== null
                 ? BankQuirks::normalizeBankCode($row['bank_code'], $urlValue)
                 : $row['bank_code'];
+
+            $previous = BankInstitute::query()->where('bank_code', $bankCode)->value('pin_tan_url');
+            if (is_string($previous) && $previous !== '' && $urlValue !== null && $previous !== $urlValue) {
+                $changed[] = ['bank_code' => $bankCode, 'from' => $previous, 'to' => $urlValue];
+            }
 
             BankInstitute::query()->updateOrCreate(
                 ['bank_code' => $bankCode],
@@ -62,6 +84,8 @@ class InstituteDirectoryService
             'imported' => $imported,
             'with_pin_tan' => $withPinTan,
             'skipped' => $skipped,
+            'rejected' => $rejected,
+            'changed' => $changed,
         ];
     }
 
