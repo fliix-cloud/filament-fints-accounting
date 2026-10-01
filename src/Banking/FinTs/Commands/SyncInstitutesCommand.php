@@ -25,6 +25,15 @@ class SyncInstitutesCommand extends Command
 
         $this->info("Imported {$result['imported']} institutes ({$result['with_pin_tan']} with PIN/TAN URL, {$result['skipped']} skipped).");
 
+        // The directory decides where users send their PIN; make every change visible.
+        foreach ($result['changed'] as $change) {
+            $this->warn("Endpoint changed for {$change['bank_code']}: {$change['from']} -> {$change['to']}");
+        }
+
+        if ($result['rejected'] !== []) {
+            $this->warn(count($result['rejected']).' invalid endpoint(s) ignored: '.implode(', ', $result['rejected']));
+        }
+
         return self::SUCCESS;
     }
 }

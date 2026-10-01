@@ -8,6 +8,22 @@ final class EndpointValidator
 {
     public static function validate(string $url): string
     {
+        $url = self::validateSyntax($url);
+        $host = strtolower((string) parse_url($url, PHP_URL_HOST));
+
+        if (! config('filament-accounting.banking.fints.security.allow_private_endpoints', false) && self::isPrivateHost($host)) {
+            throw new FintsValidationException(__('filament-accounting::banking/fints/validation.endpoint_private'));
+        }
+
+        return $url;
+    }
+
+    /**
+     * Scheme, credential, and allow-list checks without DNS resolution. Used for
+     * bulk directory imports; validate() runs again before any connection.
+     */
+    public static function validateSyntax(string $url): string
+    {
         $url = trim($url);
 
         if ($url === '') {
@@ -39,10 +55,6 @@ final class EndpointValidator
 
         if (is_array($allowed) && $allowed !== [] && ! in_array($host, $allowed, true)) {
             throw new FintsValidationException(__('filament-accounting::banking/fints/validation.endpoint_host'));
-        }
-
-        if (! config('filament-accounting.banking.fints.security.allow_private_endpoints', false) && self::isPrivateHost($host)) {
-            throw new FintsValidationException(__('filament-accounting::banking/fints/validation.endpoint_private'));
         }
 
         return $url;

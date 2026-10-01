@@ -44,6 +44,8 @@ class BankConnection extends Model
 {
     use UsesPackageConnection;
 
+    public const AUTHENTICATION_FAILED = 'authentication_failed';
+
     protected $table = 'fints_bank_connections';
 
     protected $hidden = [
@@ -136,6 +138,25 @@ class BankConnection extends Model
     public function hasPin(): bool
     {
         return filled($this->getRawOriginal('pin'));
+    }
+
+    /**
+     * Banks lock the PIN after a few failed logins. Once a login was rejected,
+     * only an explicit connection test may contact the bank again.
+     */
+    public function blocksAutomaticLogin(): bool
+    {
+        return $this->status === BankConnectionStatus::Disabled
+            || ($this->status === BankConnectionStatus::Error
+                && $this->last_error_code === self::AUTHENTICATION_FAILED);
+    }
+
+    public function markAuthenticationFailed(string $message): void
+    {
+        $this->status = BankConnectionStatus::Error;
+        $this->last_error_code = self::AUTHENTICATION_FAILED;
+        $this->last_error_message = $message;
+        $this->save();
     }
 
     /**

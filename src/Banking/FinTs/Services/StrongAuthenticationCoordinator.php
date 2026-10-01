@@ -34,6 +34,7 @@ use FilamentAccounting\Banking\FinTs\Events\StrongAuthenticationCompleted;
 use FilamentAccounting\Banking\FinTs\Events\StrongAuthenticationExpired;
 use FilamentAccounting\Banking\FinTs\Events\StrongAuthenticationStarted;
 use FilamentAccounting\Banking\FinTs\Exceptions\AmbiguousSubmissionException;
+use FilamentAccounting\Banking\FinTs\Exceptions\AuthenticationException;
 use FilamentAccounting\Banking\FinTs\Exceptions\FintsValidationException;
 use FilamentAccounting\Banking\FinTs\Exceptions\ScaExpiredException;
 use FilamentAccounting\Banking\FinTs\Exceptions\ScaPollingLimitException;
@@ -67,27 +68,40 @@ class StrongAuthenticationCoordinator
         ?string $returnUrl = null,
         ?Model $actor = null,
     ): ScaOutcome {
-        if (! $action instanceof DialogInitialization && ! $client->hasOpenDialog()) {
-            $login = $client->login();
-            if ($this->actionNeedsUser($login)) {
-                return $this->evaluate($connection, $login, $type, $client, $related, $returnUrl, $actor);
-            }
+        if ($connection->blocksAutomaticLogin()) {
+            throw new AuthenticationException(__('filament-accounting::banking/fints/errors.authentication_blocked'));
         }
 
         try {
-            $client->execute($action);
-        } catch (\Throwable $e) {
-            $mapped = ErrorMapper::map($e);
-            if (! $this->shouldRelogin($mapped)) {
-                throw $mapped;
+            if (! $action instanceof DialogInitialization && ! $client->hasOpenDialog()) {
+                $login = $client->login();
+                if ($this->actionNeedsUser($login)) {
+                    return $this->evaluate($connection, $login, $type, $client, $related, $returnUrl, $actor);
+                }
             }
 
-            $client->forgetDialog();
-            $login = $client->login();
-            if ($this->actionNeedsUser($login)) {
-                return $this->evaluate($connection, $login, $type, $client, $related, $returnUrl, $actor);
+            try {
+                $client->execute($action);
+            } catch (\Throwable $e) {
+                $mapped = ErrorMapper::map($e);
+                if (! $this->shouldRelogin($mapped)) {
+                    throw $mapped;
+                }
+
+                $client->forgetDialog();
+                $login = $client->login();
+                if ($this->actionNeedsUser($login)) {
+                    return $this->evaluate($connection, $login, $type, $client, $related, $returnUrl, $actor);
+                }
+                $client->execute($action);
             }
-            $client->execute($action);
+        } catch (\Throwable $e) {
+            $mapped = ErrorMapper::map($e);
+            if ($mapped instanceof AuthenticationException) {
+                $connection->markAuthenticationFailed($mapped->userMessage());
+            }
+
+            throw $e;
         }
 
         return $this->evaluate($connection, $action, $type, $client, $related, $returnUrl, $actor);

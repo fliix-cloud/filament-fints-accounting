@@ -2,6 +2,7 @@
 
 namespace FilamentAccounting\Catalog\ImportExport;
 
+use FilamentAccounting\Support\CsvFormula;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\Cell\DataType;
 use PhpOffice\PhpSpreadsheet\Cell\DataValidation;
@@ -139,7 +140,7 @@ final class CatalogSerializer
                 if (count($values) !== count(CatalogTransferSchema::FIELDS)) {
                     throw CatalogImportException::because('row', ['position' => $position, 'field' => implode(', ', CatalogTransferSchema::FIELDS)]);
                 }
-                $rows[$position] = array_combine(CatalogTransferSchema::FIELDS, $values);
+                $rows[$position] = array_combine(CatalogTransferSchema::FIELDS, array_map(CsvFormula::unescape(...), $values));
                 $next = ftell($stream);
                 $position += preg_match_all('/\r\n|\r|\n/', substr($text, $offset, $next - $offset));
                 $offset = $next;
@@ -217,7 +218,8 @@ final class CatalogSerializer
                 fputcsv($stream, CatalogTransferSchema::FIELDS, ';', '"', '', "\r\n");
                 foreach ($rows as $row) {
                     $row['active'] = $row['active'] ? '1' : '0';
-                    fputcsv($stream, array_map(fn (string $field) => $row[$field], CatalogTransferSchema::FIELDS), ';', '"', '', "\r\n");
+                    // Neutralize spreadsheet formulas; readCsv() reverses this.
+                    fputcsv($stream, array_map(fn (string $field) => CsvFormula::escape($row[$field]), CatalogTransferSchema::FIELDS), ';', '"', '', "\r\n");
                 }
             } finally {
                 fclose($stream);

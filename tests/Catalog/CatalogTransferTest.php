@@ -278,6 +278,23 @@ class CatalogTransferTest extends TestCase
     }
 
     #[Test]
+    public function csv_export_neutralizes_formulas_and_round_trips_them(): void
+    {
+        $rows = [array_replace(CatalogTransferSchema::example(), [
+            'name' => '=HYPERLINK("https://evil.example","Klick")',
+            'description' => "'=bereits mit Apostroph",
+        ])];
+        app(CatalogSerializer::class)->write($this->path, 'csv', $rows);
+
+        $text = (string) file_get_contents($this->path);
+        $this->assertDoesNotMatchRegularExpression('/(^|;)"?[=+\-@]/m', $text);
+
+        $decoded = array_values(app(CatalogSerializer::class)->read($this->path, 'csv'));
+        $this->assertSame($rows[0]['name'], $decoded[0]['name']);
+        $this->assertSame($rows[0]['description'], $decoded[0]['description']);
+    }
+
+    #[Test]
     #[DataProvider('formats')]
     public function templates_are_importable_and_empty_catalog_exports_are_valid_noops(string $format): void
     {

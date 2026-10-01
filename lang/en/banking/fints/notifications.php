@@ -3,6 +3,8 @@
 return [
     'institutes_synced' => 'Bank directory updated.',
     'institutes_synced_body' => ':count institutes with a PIN/TAN endpoint are available.',
+    'institutes_endpoints_changed' => ':count institutes changed their endpoint (bank codes :codes). Compare them with the bank\'s published details before the next login.',
+    'institutes_endpoints_rejected' => ':count invalid endpoints were ignored.',
     'saved' => 'Saved.',
     'connection_tested' => 'Connection tested successfully.',
     'accounts_synced' => 'Accounts synchronized.',

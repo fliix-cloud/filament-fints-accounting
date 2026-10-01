@@ -3,6 +3,7 @@
 namespace FilamentAccounting\Tests\Authorization;
 
 use FilamentAccounting\Exceptions\AuditEvidenceException;
+use FilamentAccounting\Filament\Support\AuditExportAction;
 use FilamentAccounting\Tests\TestCase;
 use Illuminate\Support\Facades\Gate;
 use PHPUnit\Framework\Attributes\Test;
@@ -14,7 +15,7 @@ class AuditExportRouteTest extends TestCase
     {
         $entity = $this->makeEntity();
 
-        $this->getJson(route('filament-accounting.audit-export', ['legalEntity' => $entity->getRouteKey()]))
+        $this->getJson(AuditExportAction::url($entity))
             ->assertUnauthorized();
     }
 
@@ -25,7 +26,7 @@ class AuditExportRouteTest extends TestCase
         $this->actingAs($this->makeUser());
         Gate::define('accounting.audit.export', fn (): bool => false);
 
-        $this->get(route('filament-accounting.audit-export', ['legalEntity' => $entity->getRouteKey()]))
+        $this->get(AuditExportAction::url($entity))
             ->assertForbidden();
     }
 
@@ -37,7 +38,7 @@ class AuditExportRouteTest extends TestCase
         $this->withoutExceptionHandling();
 
         try {
-            $this->get(route('filament-accounting.audit-export', ['legalEntity' => $entity->getRouteKey()]));
+            $this->get(AuditExportAction::url($entity));
             $this->fail('Export must not run inside an enclosing accounting transaction.');
         } catch (AuditEvidenceException $exception) {
             $this->assertStringContainsString('independent accounting transaction', $exception->getMessage());

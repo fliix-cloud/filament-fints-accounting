@@ -3,6 +3,8 @@
 return [
     'institutes_synced' => 'Bankverzeichnis aktualisiert.',
     'institutes_synced_body' => ':count Institute mit PIN/TAN-Endpunkt sind verfügbar.',
+    'institutes_endpoints_changed' => 'Bei :count Instituten hat sich der Endpunkt geändert (BLZ :codes). Bitte vor der nächsten Anmeldung mit den Angaben der Bank abgleichen.',
+    'institutes_endpoints_rejected' => ':count ungültige Endpunkte wurden ignoriert.',
     'saved' => 'Gespeichert.',
     'connection_tested' => 'Verbindung erfolgreich getestet.',
     'accounts_synced' => 'Konten synchronisiert.',

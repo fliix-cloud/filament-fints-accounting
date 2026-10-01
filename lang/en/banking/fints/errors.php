@@ -4,6 +4,7 @@ return [
     'generic' => 'The bank request could not be completed.',
     'configuration' => 'The FinTS product registration is missing or invalid.',
     'authentication' => 'Login to the bank failed.',
+    'authentication_blocked' => 'The last bank login was rejected. Automatic logins are paused to protect your PIN from being locked. Check the credentials and test the connection.',
     'unsupported_capability' => 'This operation is not supported for the selected bank or account.',
     'unsupported_direct_debit_pain' => 'The bank does not advertise a direct-debit PAIN format that this package can safely generate.',
     'account_not_usable' => 'This account is not enabled for use in Filament.',

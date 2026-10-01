@@ -15,6 +15,7 @@ use FilamentAccounting\Banking\FinTs\Models\BankConnection;
 use FilamentAccounting\Banking\FinTs\Models\BankSyncRun;
 use FilamentAccounting\Contracts\AccountingAuthorizer;
 use FilamentAccounting\Models\AccountingBankAccount as BankAccount;
+use FilamentAccounting\Ownership\LegalEntityScope;
 use FilamentAccounting\Support\ExactMoney;
 use Illuminate\Database\Eloquent\Model;
 
@@ -25,11 +26,13 @@ class BalanceSyncService
         private readonly StrongAuthenticationCoordinator $sca,
         private readonly StatementBalanceReconciler $balanceReconciler,
         private readonly AccountingAuthorizer $authorizer,
+        private readonly LegalEntityScope $entities,
     ) {}
 
     public function sync(BankAccount $account, ?Model $actor = null, ?string $returnUrl = null): ScaOutcome
     {
         $this->authorizer->authorize('sync_bank', $account);
+        $this->entities->assertModel($account);
         $this->assertUsable($account);
 
         $connection = $account->connection;
